@@ -24,6 +24,7 @@ const DEFAULTS = {
   password: '',
   lists: [],
   language: 'auto',
+  refreshMinutes: 5,
   staleSeconds: 60,
 };
 
@@ -121,6 +122,9 @@ function normalizeSettings(raw) {
 
   out.lists = lists;
   out.language = ['auto', 'en', 'de'].includes(out.language) ? out.language : 'auto';
+  // 0 is a real value here: it means "do not fetch on a timer at all".
+  out.refreshMinutes = Number.isFinite(out.refreshMinutes)
+    && out.refreshMinutes >= 0 && out.refreshMinutes <= 1440 ? out.refreshMinutes : 5;
   out.staleSeconds = Number.isFinite(out.staleSeconds) && out.staleSeconds > 0 ? out.staleSeconds : 60;
   out.baseUrl = String(out.baseUrl || '');
   out.username = String(out.username || '');

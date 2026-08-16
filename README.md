@@ -1,10 +1,14 @@
 # Nextcloud Tasks for Obsidian
 
-Read, create and complete your **Nextcloud Tasks** inside a note, over CalDAV.
+Read, create, edit and complete your **Nextcloud Tasks** inside a note, over CalDAV.
 
 Your tasks stay on your server. This plugin does not copy them into your vault, does not write
 checkboxes into your notes, and does not keep a cache file that can drift out of sync. It fetches
 what is there, shows it, and writes your changes straight back.
+
+That is the difference from the other CalDAV plugins in the directory: they sync markdown checkboxes
+in your notes to a server, so there are two copies of every task. Here there is one copy, and it is
+the one in Nextcloud.
 
 It is plain JavaScript with no dependencies and no native code, so the same build runs on the
 desktop app and on a phone.
@@ -28,9 +32,9 @@ flowchart LR
 
   B --> M
   S --> M
-  M -- "PROPFIND, REPORT" --> nc
+  M -- "PROPFIND, REPORT<br/>on open and on a timer" --> nc
   nc -- "the tasks themselves" --> M
-  M -- "tick a box, add a task: PUT" --> nc
+  M -- "tick, add, edit, delete<br/>PUT and DELETE, straight away" --> nc
 ```
 
 ## Any lists, any names
@@ -54,7 +58,10 @@ the plugin.
    the base only, without `/remote.php/dav`), your username and the app password.
 3. Press **Load**. Every task list on your account appears. Tick the ones you want, rename the
    headings, pick colours, and drag them into the order you want them grouped in.
-4. Press **Test connection** if something does not work. It reports every step on its own, so a
+4. Set **Refresh automatically** to how often the plugin should look for tasks you added or ticked
+   somewhere else. Five minutes by default, and **Never** if you would rather fetch by hand. It only
+   runs while a task list is actually on screen, so it costs nothing while you write.
+5. Press **Test connection** if something does not work. It reports every step on its own, so a
    failure points at one line rather than at "could not connect".
 
 Do not have a task list yet? **Create list** makes one on the server without leaving Obsidian.
@@ -89,16 +96,27 @@ switch Obsidian's language.
 Rows sort the way you would triage them: overdue first, then by due date, undated last. Within one
 day the higher priority wins, and a tie falls back to the order you put your lists in.
 
+## Working with a task
+
+- **Tick the box** to complete it. It is written to the server straight away, and the row stays on
+  screen with a line through it until you leave the note, so you can see what you did and undo it if
+  you hit the wrong one.
+- **Click the title** to edit it: title, due date and priority, in the same dialog that creates one.
+  Only what you actually changed is written, so a repeat, a reminder, a description or a subtask that
+  the plugin does not show is not touched. A task moves to another list in Nextcloud, not here.
+- **Delete** is in that dialog too, behind one confirmation.
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | **New task** | a small dialog: title, list, due date, priority |
-| **Refresh tasks** | fetches now, instead of waiting for the next stale block |
+| **Refresh tasks** | fetches now, instead of waiting for the timer |
 | **Test connection** | walks discovery step by step and shows what each one answered |
 
-There is no polling timer. The plugin fetches when Obsidian starts, when a block renders with data
-older than a minute, when you run the command, and after you write something.
+The plugin fetches when Obsidian starts, on the interval you set, when a block renders with data
+older than a minute, when you run the command, and after you write something. It never fetches while
+no task list is on screen or while the app is in the background.
 
 ## Your phone
 
@@ -147,9 +165,13 @@ Things that look like details and are not:
 - **Nothing is written to disk, not even as a cache.** The fetched list lives in memory for the
   session. That is what makes "your tasks live in Nextcloud" literally true, and it is why there is
   no file that can go stale.
-- **Completing a task edits the original calendar object line by line** and copies every other byte
-  through. Regenerating it from a parsed model would silently drop `RRULE`, `VALARM`, `CATEGORIES`
-  and every `X-` property other clients wrote. The test asserts byte identity of untouched lines.
+- **Completing or editing a task rewrites the original calendar object line by line** and copies
+  every other byte through. Regenerating it from a parsed model would silently drop `RRULE`,
+  `VALARM`, `CATEGORIES`, `RELATED-TO` and every `X-` property other clients wrote. The test asserts
+  byte identity of untouched lines, for both writers.
+- **An edit sends only the fields you changed.** Leaving the date field alone is different from
+  clearing it: the first never mentions `DUE` at all, so a task due at a particular time of day keeps
+  that time when you fix a typo in its title. The second removes the line.
 - **Completion is judged in the client**, because three clients express it three ways: `STATUS`,
   a bare `COMPLETED:` property, or `PERCENT-COMPLETE:100`. A server-side filter that gets this
   wrong hides tasks, which is worse than showing one too many.

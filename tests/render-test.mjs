@@ -124,6 +124,16 @@ setLocale('en');
 }
 
 {
+  eq(normalizeSettings({}).refreshMinutes, 5, 'model: the refresh interval defaults to five minutes');
+  eq(normalizeSettings({ refreshMinutes: 0 }).refreshMinutes, 0,
+    'model: zero is a real choice, not a missing value — it means never');
+  eq(normalizeSettings({ refreshMinutes: 15 }).refreshMinutes, 15, 'model: a chosen interval survives');
+  eq(normalizeSettings({ refreshMinutes: -3 }).refreshMinutes, 5, 'model: a negative interval falls back');
+  eq(normalizeSettings({ refreshMinutes: 99999 }).refreshMinutes, 5, 'model: an absurd interval falls back');
+  eq(normalizeSettings({ refreshMinutes: 'soon' }).refreshMinutes, 5, 'model: a non-number falls back');
+}
+
+{
   eq(slugify('Persönliches & Mehr'), 'persoenliches-mehr', 'model: slugs survive umlauts');
   eq(slugify('🌿 Personal'), 'personal', 'model: an emoji does not end up in a key');
   eq(titleCase('shopping-list'), 'Shopping list', 'model: a readable label out of a slug');
@@ -296,6 +306,31 @@ const task = (listKey, summary, due, priority, done) => ({
 
   const one = groupByList([task('solo', 'x')], [{ key: 'solo', label: 'Solo', color: '', enabled: true }]);
   eq(one.length, 1, 'render: one list is not a special case either');
+}
+
+{
+  // A task you just ticked stays on screen, struck through, so you can see what
+  // you did and undo it. Everything else that is done stays filtered out.
+  const now = new Date(2026, 7, 14);
+  const mine = task('work', 'Just ticked', new Date(2026, 7, 14), 0, true);
+  const theirs = task('work', 'Done last week', new Date(2026, 7, 10), 0, true);
+  const open = task('work', 'Still open', new Date(2026, 7, 14));
+  const rows = [mine, theirs, open];
+
+  const sticky = new Set([mine.url]);
+  deep(selectTasks(rows, parseBlock('all'), now, LISTS, sticky).map((e) => e.todo.summary),
+    ['Just ticked', 'Still open'],
+    'render: the task you just ticked stays, the one completed elsewhere does not');
+
+  deep(selectTasks(rows, parseBlock('all'), now, LISTS, new Set()).map((e) => e.todo.summary),
+    ['Still open'], 'render: an empty sticky set behaves exactly as before');
+  deep(selectTasks(rows, parseBlock('all'), now, LISTS).map((e) => e.todo.summary),
+    ['Still open'], 'render: no sticky set at all is the same thing');
+
+  eq(selectTasks(rows, parseBlock('done: true'), now, LISTS, sticky).length, 3,
+    'render: "done: true" is unaffected by stickiness');
+  eq(selectTasks(rows, parseBlock('list: school'), now, LISTS, sticky).length, 0,
+    'render: a sticky task does not leak into another list');
 }
 
 {

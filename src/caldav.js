@@ -312,30 +312,52 @@ class CalDav {
   }
 
   /**
-   * Tick or un-tick. Re-reads the object first so the edit is applied to what
-   * the server currently holds, then PUTs with If-Match. A 412 means someone —
-   * Reminders, the web UI, the other laptop — changed it in between; we refetch
-   * once and reapply, because the edit is a small idempotent change, not a
+   * Every write to an existing object goes through here. It re-reads the object
+   * first so the edit is applied to what the server currently holds, then PUTs
+   * with If-Match. A 412 means someone — Reminders, the web UI, the other
+   * laptop — changed it in between; we refetch once and reapply, because
+   * `transform` is a small idempotent edit of the original text, not a
    * whole-object overwrite that would be unsafe to replay.
+   *
+   * `transform` returns null when the object holds no VTODO, and returns the
+   * text it was handed when there is nothing to change. Neither ends in a PUT.
    */
-  async setDone(entryUrl, done, attempt) {
+  async editObject(entryUrl, transform, attempt) {
     const got = await this.dav('GET', entryUrl, { allow: [200] });
     const etag = (got.headers && (got.headers.etag || got.headers.ETag)) || '';
-    const next = ics.setCompletion(got.text, done);
+    const next = transform(got.text);
     if (next === null) {
       throw new DavError(t('err.noTodo'), 0, 'PUT', entryUrl);
     }
+    if (next === got.text) return { url: entryUrl, etag, unchanged: true };
 
     const res = await this.raw('PUT', entryUrl, {
       body: next,
       contentType: 'text/calendar; charset=utf-8',
       headers: etag ? { 'If-Match': etag } : {},
     });
-    if (res.status === 412 && !attempt) return this.setDone(entryUrl, done, 1);
+    if (res.status === 412 && !attempt) return this.editObject(entryUrl, transform, 1);
     if (![200, 201, 204].includes(res.status)) {
       throw new DavError(describe(res.status, 'PUT', entryUrl), res.status, 'PUT', entryUrl);
     }
-    return { url: entryUrl, etag: (res.headers && (res.headers.etag || res.headers.ETag)) || '' };
+    return {
+      url: entryUrl,
+      etag: (res.headers && (res.headers.etag || res.headers.ETag)) || '',
+      unchanged: false,
+    };
+  }
+
+  /** Tick or un-tick. */
+  async setDone(entryUrl, done) {
+    return this.editObject(entryUrl, (text) => ics.setCompletion(text, done));
+  }
+
+  /**
+   * Change title, due date or priority. `fields` is partial: a key that is not
+   * there leaves that property exactly as whichever client wrote it left it.
+   */
+  async updateTask(entryUrl, fields) {
+    return this.editObject(entryUrl, (text) => ics.setFields(text, fields));
   }
 
   async deleteTask(entryUrl) {

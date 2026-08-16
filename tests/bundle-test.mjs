@@ -25,7 +25,7 @@ if (!fs.existsSync(MAIN)) {
 
 /* ---------------------------------------------------- the obsidian stub */
 
-const registered = { commands: [], codeBlocks: [], settingTabs: [] };
+const registered = { commands: [], codeBlocks: [], settingTabs: [], intervals: [] };
 let saveDataCalls = 0;
 let loadDataReturns = {};
 
@@ -34,6 +34,7 @@ class FakePlugin {
   addCommand(c) { registered.commands.push(c); }
   addSettingTab(tab) { registered.settingTabs.push(tab); }
   registerMarkdownCodeBlockProcessor(lang, fn) { registered.codeBlocks.push({ lang, fn }); }
+  registerInterval(id) { registered.intervals.push(id); return id; }
   async loadData() { return loadDataReturns; }
   async saveData() { saveDataCalls += 1; }
 }
@@ -64,11 +65,30 @@ class FakeSetting {
 let networkCalls = [];
 let route = async () => ({ status: 404, headers: {}, text: '' });
 
+/*
+ * Obsidian runs in a browser; node does not have these. The timers hand out
+ * ids without ever scheduling anything: what is under test is that the plugin
+ * registers an interval and hands it to Obsidian for cleanup, not that node
+ * would eventually fire it. A real setInterval here would also keep this
+ * process alive forever.
+ */
+let nextTimerId = 1;
+globalThis.window = {
+  setInterval: () => nextTimerId++,
+  clearInterval: () => {},
+};
+globalThis.document = { hidden: false };
+
 const obsidianStub = {
   Plugin: FakePlugin,
   PluginSettingTab: class { constructor(app, plugin) { this.app = app; this.plugin = plugin; } },
   Setting: FakeSetting,
-  Modal: class { constructor(app) { this.app = app; } setTitle() {} open() {} close() {} },
+  Modal: class {
+    constructor(app) { this.app = app; this.contentEl = fakeEl(); }
+    setTitle() {}
+    open() { if (this.onOpen) this.onOpen(); }
+    close() {}
+  },
   Notice: class { hide() {} },
   MarkdownRenderChild: class { constructor(el) { this.containerEl = el; } },
   requestUrl: async (req) => { networkCalls.push(req); return route(req); },
@@ -221,12 +241,48 @@ const app = { workspace: { onLayoutReady() {} } };
     check(plugin.fetchedAt instanceof Date, 'the fetch time is remembered, in memory');
     check(saveDataCalls === 0, 'a refresh writes nothing to disk');
 
-    await plugin.toggle(plugin.entries[0], true, () => {});
+    const entry = plugin.entries[0];
+    await plugin.toggle(entry, true, () => {});
     const put = networkCalls.filter((c) => c.method === 'PUT').pop();
     check(!!put && put.headers['If-Match'] === '"e1"', 'completion PUTs with If-Match');
     check(/STATUS:COMPLETED/.test(stored), 'completion was written through the bundle');
     check(stored.includes('X-KEEP-ME:yes'), 'an unknown property survived the bundled edit');
     check(saveDataCalls === 0, 'ticking a task still writes nothing to disk');
+    check(plugin.stickyDone.has(entry.url),
+      'a ticked task is remembered so it does not vanish from under the cursor');
+
+    // The edit path, end to end through the bundle. This is the one that would
+    // quietly destroy data if setFields were ever rewritten carelessly.
+    await plugin.client().updateTask(entry.url, { summary: 'Renamed through the bundle' });
+    check(/SUMMARY:Renamed through the bundle/.test(stored), 'an edited title reached the server');
+    check(stored.includes('X-KEEP-ME:yes'), 'the unknown property survived the edit as well');
+    check(/STATUS:COMPLETED/.test(stored), 'editing the title did not undo the completion');
+  }
+
+  /* ---- the refresh timer ---- */
+  {
+    registered.commands.length = 0;
+    registered.intervals.length = 0;
+    loadDataReturns = {
+      baseUrl: BASE,
+      username: 'alice',
+      password: 'pw',
+      refreshMinutes: 5,
+      lists: [{ url: LIST_URL, key: 'errands', label: 'Errands', enabled: true }],
+    };
+    const plugin = new PluginClass(app);
+    await plugin.onload();
+    check(registered.intervals.length === 1, 'a refresh interval is registered for cleanup',
+      String(registered.intervals.length));
+    check(plugin.timer !== null, 'and the plugin holds it');
+    window.clearInterval(plugin.timer);
+
+    registered.intervals.length = 0;
+    loadDataReturns = Object.assign({}, loadDataReturns, { refreshMinutes: 0 });
+    const off = new PluginClass(app);
+    await off.onload();
+    check(registered.intervals.length === 0 && off.timer === null,
+      'zero minutes really means no timer at all');
   }
 
   console.log(`\n${pass} passed, ${fail} failed\n`);

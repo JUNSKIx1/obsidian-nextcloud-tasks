@@ -31,6 +31,7 @@ const EN = {
   'group.other': 'Other',
   'row.untitled': '(untitled)',
   'row.task': 'Task',
+  'row.edit': 'Edit {title}',
 
   'due.yesterday': 'yesterday',
   'due.overdue': '{n} days overdue',
@@ -39,9 +40,11 @@ const EN = {
   'due.inDays': 'in {n} days',
 
   'modal.new.title': 'New task',
+  'modal.edit.title': 'Edit task',
   'modal.new.summary': 'Title',
   'modal.new.summaryPlaceholder': 'What needs doing?',
   'modal.new.list': 'List',
+  'modal.new.listFixed': 'A task is moved to another list in Nextcloud, not here.',
   'modal.new.due': 'Due',
   'modal.new.dueDesc': 'Optional. Stored as an all-day date, which is how Reminders and the '
     + 'Tasks web app expect it.',
@@ -62,8 +65,13 @@ const EN = {
   'modal.newList.namePlaceholder': 'e.g. Errands',
   'modal.newList.color': 'Color',
 
+  'modal.confirmDelete.title': 'Delete task?',
+  'modal.confirmDelete.body': '"{title}" will be deleted in Nextcloud. This cannot be undone here.',
+
   'btn.cancel': 'Cancel',
   'btn.create': 'Create',
+  'btn.save': 'Save',
+  'btn.delete': 'Delete',
   'btn.close': 'Close',
   'btn.test': 'Test',
   'btn.load': 'Load',
@@ -93,6 +101,13 @@ const EN = {
   'set.listColor': 'Color',
   'set.noListsYet': 'No lists configured yet. Press "Load".',
 
+  'set.refresh': 'Refresh automatically',
+  'set.refreshDesc': 'How often to look for tasks added, edited or completed somewhere else. '
+    + 'It only runs while a task list is actually on screen.',
+  'set.refreshOff': 'Never',
+  'set.refreshOneMinute': 'Every minute',
+  'set.refreshMinutes': 'Every {n} minutes',
+
   'set.language': 'Language',
   'set.languageDesc': 'Automatic follows the language set in Obsidian.',
   'set.languageAuto': 'Automatic',
@@ -108,6 +123,9 @@ const EN = {
   'notice.connectFirst': 'Connect in the plugin settings first, then tick at least one list.',
   'notice.created': 'Created in {list}.',
   'notice.createFailed': 'Creating failed: {error}',
+  'notice.updated': 'Task saved.',
+  'notice.deleted': 'Task deleted.',
+  'notice.deleteFailed': 'Deleting failed: {error}',
   'notice.summaryMissing': 'The title is empty.',
   'notice.listsFound': '{n} list(s) found.',
   'notice.listsFailed': 'Could not load the lists: {error}',
@@ -160,6 +178,7 @@ const DE = {
   'group.other': 'Ohne Zuordnung',
   'row.untitled': '(ohne Titel)',
   'row.task': 'Aufgabe',
+  'row.edit': '{title} bearbeiten',
 
   'due.yesterday': 'gestern',
   'due.overdue': '{n} Tage überfällig',
@@ -168,9 +187,11 @@ const DE = {
   'due.inDays': 'in {n} Tagen',
 
   'modal.new.title': 'Neue Aufgabe',
+  'modal.edit.title': 'Aufgabe bearbeiten',
   'modal.new.summary': 'Titel',
   'modal.new.summaryPlaceholder': 'Was ist zu tun?',
   'modal.new.list': 'Liste',
+  'modal.new.listFixed': 'In eine andere Liste verschiebst du eine Aufgabe in Nextcloud, nicht hier.',
   'modal.new.due': 'Fällig',
   'modal.new.dueDesc': 'Optional. Wird als ganzer Tag gespeichert — so zeigt Erinnerungen es sauber an.',
   'modal.new.priority': 'Priorität',
@@ -190,8 +211,14 @@ const DE = {
   'modal.newList.namePlaceholder': 'z. B. Besorgungen',
   'modal.newList.color': 'Farbe',
 
+  'modal.confirmDelete.title': 'Aufgabe löschen?',
+  'modal.confirmDelete.body': '„{title}“ wird in Nextcloud gelöscht. Von hier aus lässt sich das '
+    + 'nicht rückgängig machen.',
+
   'btn.cancel': 'Abbrechen',
   'btn.create': 'Anlegen',
+  'btn.save': 'Speichern',
+  'btn.delete': 'Löschen',
   'btn.close': 'Schließen',
   'btn.test': 'Testen',
   'btn.load': 'Laden',
@@ -221,6 +248,13 @@ const DE = {
   'set.listColor': 'Farbe',
   'set.noListsYet': 'Noch keine Listen eingerichtet. Drück „Laden“.',
 
+  'set.refresh': 'Automatisch aktualisieren',
+  'set.refreshDesc': 'Wie oft nach Aufgaben gesucht wird, die woanders angelegt, geändert oder '
+    + 'erledigt wurden. Läuft nur, solange eine Liste wirklich sichtbar ist.',
+  'set.refreshOff': 'Nie',
+  'set.refreshOneMinute': 'Jede Minute',
+  'set.refreshMinutes': 'Alle {n} Minuten',
+
   'set.language': 'Sprache',
   'set.languageDesc': 'Automatisch folgt der in Obsidian eingestellten Sprache.',
   'set.languageAuto': 'Automatisch',
@@ -236,6 +270,9 @@ const DE = {
   'notice.connectFirst': 'Erst in den Plugin-Einstellungen verbinden und mindestens eine Liste anhaken.',
   'notice.created': 'Angelegt in {list}.',
   'notice.createFailed': 'Anlegen fehlgeschlagen — {error}',
+  'notice.updated': 'Aufgabe gespeichert.',
+  'notice.deleted': 'Aufgabe gelöscht.',
+  'notice.deleteFailed': 'Löschen fehlgeschlagen — {error}',
   'notice.summaryMissing': 'Titel fehlt.',
   'notice.listsFound': '{n} Liste(n) gefunden.',
   'notice.listsFailed': 'Listen konnten nicht geladen werden — {error}',

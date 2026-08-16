@@ -99,17 +99,22 @@ function orderOf(lists, key) {
  * means "unset", which is the trap here). Ties fall back to the order the user
  * put the lists in, then to the title.
  *
- * @param {Array} entries rows carrying `listKey`
- * @param {object} cfg    from parseBlock
+ * `keepDone` holds the URLs of tasks ticked in this session. They stay on
+ * screen, struck through, even though they are done: a task that vanishes the
+ * instant you tick it gives you no chance to notice you ticked the wrong one.
+ *
+ * @param {Array} entries  rows carrying `listKey`
+ * @param {object} cfg     from parseBlock
  * @param {Date} now
- * @param {Array} lists   the configured lists, for ordering
+ * @param {Array} lists    the configured lists, for ordering
+ * @param {Set} [keepDone] task URLs to show despite being done
  */
-function selectTasks(entries, cfg, now, lists) {
+function selectTasks(entries, cfg, now, lists, keepDone) {
   const when = now || new Date();
   const c = cfg || {};
   let rows = (entries || []).slice();
 
-  if (!c.showDone) rows = rows.filter((e) => !e.done);
+  if (!c.showDone) rows = rows.filter((e) => !e.done || (keepDone && keepDone.has(e.url)));
   if (c.list) rows = rows.filter((e) => e.listKey === c.list);
 
   if (c.due === 'today' || c.due === 'week') {
@@ -161,7 +166,8 @@ function groupByList(rows, lists) {
 /**
  * @param {HTMLElement} el   the code block's container
  * @param {object} view      { state, rows, grouped, lists, fetchedAt, message, cfg, now, stale }
- * @param {object} handlers  { onToggle(entry, done, settle), onCreate(listKey), onRefresh() }
+ * @param {object} handlers  { onToggle(entry, done, settle), onCreate(listKey),
+ *                             onRefresh(), onEdit(entry) }
  */
 function renderPanel(el, view, handlers) {
   el.empty();
@@ -260,7 +266,17 @@ function renderRow(list, entry, view, h) {
   }
 
   const what = row.createDiv({ cls: 'nct-what' });
-  what.createSpan({ cls: 'nct-summary', text: entry.todo.summary || t('row.untitled') });
+  const title = entry.todo.summary || t('row.untitled');
+  if (h.onEdit) {
+    // A real button, not a span with a click handler: it has to be reachable by
+    // keyboard and to announce itself as a control. The CSS takes the chrome
+    // back off so the row still reads as a line of text.
+    const open = what.createEl('button', { cls: 'nct-summary is-editable', text: title });
+    open.setAttribute('aria-label', t('row.edit', { title }));
+    open.addEventListener('click', () => h.onEdit(entry));
+  } else {
+    what.createSpan({ cls: 'nct-summary', text: title });
+  }
   if (entry.todo.priority >= 1 && entry.todo.priority <= 4) {
     what.createSpan({ cls: 'nct-flag', text: '!' });
   }

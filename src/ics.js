@@ -355,14 +355,21 @@ function findTodoBlock(logi) {
 }
 
 /**
- * Ticks (or un-ticks) a task by rewriting only the properties that express
- * completion. Every other physical line — including ones we cannot parse — is
- * copied through byte for byte.
+ * Rewrites named properties of the task in place and copies every other
+ * physical line — including ones we cannot parse — through byte for byte.
+ * This is the one function that writes to an existing calendar object, and the
+ * reason it is written this way is that a VTODO from Reminders or the Tasks web
+ * app carries RRULE, VALARM, CATEGORIES, RELATED-TO and X-APPLE-* that this
+ * plugin does not model. Parsing and re-emitting would delete them silently.
+ *
+ * `props` maps a property name to the full replacement line, or to null meaning
+ * "remove it if present, do not add it". `LAST-MODIFIED`, `DTSTAMP` and a
+ * bumped `SEQUENCE` are always applied; a caller may override them.
  *
  * Returns null when the object holds no VTODO, so the caller can refuse to PUT
  * rather than upload something it did not understand.
  */
-function setCompletion(icsText, done, opts) {
+function setProps(icsText, props, opts) {
   const o = opts || {};
   const now = o.now || new Date();
   const phys = splitPhysical(icsText);
@@ -379,23 +386,11 @@ function setCompletion(icsText, done, opts) {
   }
 
   // null means "remove this property if present, do not add it".
-  const wanted = done
-    ? {
-      'STATUS': 'STATUS:COMPLETED',
-      'COMPLETED': `COMPLETED:${stamp}`,
-      'PERCENT-COMPLETE': 'PERCENT-COMPLETE:100',
-      'LAST-MODIFIED': `LAST-MODIFIED:${stamp}`,
-      'DTSTAMP': `DTSTAMP:${stamp}`,
-      'SEQUENCE': `SEQUENCE:${sequence + 1}`,
-    }
-    : {
-      'STATUS': 'STATUS:NEEDS-ACTION',
-      'COMPLETED': null,
-      'PERCENT-COMPLETE': 'PERCENT-COMPLETE:0',
-      'LAST-MODIFIED': `LAST-MODIFIED:${stamp}`,
-      'DTSTAMP': `DTSTAMP:${stamp}`,
-      'SEQUENCE': `SEQUENCE:${sequence + 1}`,
-    };
+  const wanted = Object.assign({
+    'LAST-MODIFIED': `LAST-MODIFIED:${stamp}`,
+    'DTSTAMP': `DTSTAMP:${stamp}`,
+    'SEQUENCE': `SEQUENCE:${sequence + 1}`,
+  }, props);
 
   // Which logical lines inside the block are ones we replace or drop.
   const handled = new Map();               // logical index → replacement | null
@@ -441,6 +436,64 @@ function setCompletion(icsText, done, opts) {
   return out.map((p) => p.text + p.eol).join('');
 }
 
+/**
+ * Ticks or un-ticks a task. Three properties express completion because three
+ * clients disagree about which one counts, so all three are written.
+ */
+function setCompletion(icsText, done, opts) {
+  const now = (opts && opts.now) || new Date();
+  const stamp = icsStamp(now);
+  return setProps(icsText, done
+    ? {
+      'STATUS': 'STATUS:COMPLETED',
+      'COMPLETED': `COMPLETED:${stamp}`,
+      'PERCENT-COMPLETE': 'PERCENT-COMPLETE:100',
+    }
+    : {
+      'STATUS': 'STATUS:NEEDS-ACTION',
+      'COMPLETED': null,
+      'PERCENT-COMPLETE': 'PERCENT-COMPLETE:0',
+    }, { now });
+}
+
+/**
+ * Edits the fields the task dialog offers. `fields` is deliberately partial,
+ * with three meanings:
+ *
+ *   undefined   leave the property exactly as it is
+ *   null        remove it
+ *   a value     set it
+ *
+ * The difference between the first two is what keeps a timed
+ * `DUE;TZID=Europe/Berlin:20260820T140000` intact when someone only fixes a
+ * typo in the title: an untouched date field never reaches this function, so
+ * the line is never considered. Returns the input unchanged when there is
+ * nothing to do, so the caller can skip the PUT entirely.
+ */
+function setFields(icsText, fields, opts) {
+  const now = (opts && opts.now) || new Date();
+  const f = fields || {};
+  const props = {};
+
+  if (f.summary !== undefined) {
+    props.SUMMARY = f.summary === null ? null : `SUMMARY:${escapeText(String(f.summary))}`;
+  }
+  if (f.description !== undefined) {
+    props.DESCRIPTION = f.description ? `DESCRIPTION:${escapeText(String(f.description))}` : null;
+  }
+  if (f.due !== undefined) {
+    const ok = f.due instanceof Date && !isNaN(f.due);
+    props.DUE = ok ? `DUE;VALUE=DATE:${icsDay(f.due)}` : null;
+  }
+  if (f.priority !== undefined) {
+    const p = parseInt(f.priority, 10);
+    props.PRIORITY = p >= 1 && p <= 9 ? `PRIORITY:${p}` : null;
+  }
+
+  if (!Object.keys(props).length) return icsText;
+  return setProps(icsText, props, { now });
+}
+
 export {
   PRODID,
   escapeText,
@@ -460,6 +513,8 @@ export {
   isDone,
   newUid,
   buildTodo,
+  setProps,
   setCompletion,
+  setFields,
   findTodoBlock,
 };

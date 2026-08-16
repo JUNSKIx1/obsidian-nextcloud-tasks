@@ -22,10 +22,18 @@ import { parseBlock, selectTasks, renderPanel } from './render.js';
 import { normalizeSettings, enabledLists } from './model.js';
 import { setLocale, t } from './i18n.js';
 import { NextcloudTasksSettingTab } from './settings.js';
-import { NewTaskModal, ProbeModal } from './modals.js';
+import { TaskModal, ProbeModal, ConfirmModal } from './modals.js';
 
 const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const message = (e) => (e && e.message ? e.message : String(e));
+const pad = (n) => String(n).padStart(2, '0');
+
+/** What an `<input type="date">` wants: the local day, never a UTC shift. */
+function dateInputValue(due) {
+  if (!due || !due.date) return '';
+  const d = due.date;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 export default class NextcloudTasksPlugin extends Plugin {
   async onload() {
@@ -37,11 +45,18 @@ export default class NextcloudTasksPlugin extends Plugin {
     this.error = null;
     this.loading = false;
     this.blocks = new Set();
+    this.timer = null;
+    this.stickyDone = new Set();   // ticked in this session, kept on screen
 
     this.registerMarkdownCodeBlockProcessor('nextcloud-tasks', (source, el, ctx) => {
       const block = { el, cfg: parseBlock(source) };
       this.blocks.add(block);
-      ctx.addChild(new BlockHandle(el, () => this.blocks.delete(block)));
+      ctx.addChild(new BlockHandle(el, () => {
+        this.blocks.delete(block);
+        // Nothing of ours is on screen any more, so "the task you just ticked"
+        // stops being a thing worth keeping. This is the "until you leave" line.
+        if (!this.blocks.size) this.stickyDone.clear();
+      }));
       this.draw(block);
       if (this.configured && this.isStale()) this.refresh(false);
     });
@@ -64,10 +79,38 @@ export default class NextcloudTasksPlugin extends Plugin {
 
     this.addSettingTab(new NextcloudTasksSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => { if (this.configured) this.refresh(false); });
+    this.applyRefreshTimer();
   }
 
   onunload() {
     this.blocks.clear();
+    this.stickyDone.clear();
+  }
+
+  /* -------------------------------------------------------------- pulling */
+
+  /**
+   * The only timer in the plugin, and it lives inside Obsidian: it is created
+   * on load, replaced when the interval setting changes, and cleared by
+   * `registerInterval` when the plugin unloads. Without it nothing would ever
+   * arrive from the server on its own, which is wrong for a plugin whose whole
+   * premise is that the tasks live there and not here.
+   */
+  applyRefreshTimer() {
+    if (this.timer) window.clearInterval(this.timer);
+    this.timer = null;
+    const minutes = this.settings.refreshMinutes;
+    if (!minutes) return;
+    this.timer = window.setInterval(() => this.tick(), minutes * 60000);
+    this.registerInterval(this.timer);
+  }
+
+  /** A tick that would achieve nothing costs a request, so it is skipped. */
+  tick() {
+    if (!this.configured || this.loading) return;
+    if (!this.blocks.size) return;                       // no panel on screen
+    if (typeof document !== 'undefined' && document.hidden) return;   // app in the background
+    this.refresh(false);
   }
 
   /**
@@ -100,14 +143,28 @@ export default class NextcloudTasksPlugin extends Plugin {
     return this._dav;
   }
 
+  /** Should a block rendering right now trigger a fetch. */
   isStale() {
     if (!this.fetchedAt) return true;
     return (Date.now() - this.fetchedAt.getTime()) / 1000 > this.settings.staleSeconds;
   }
 
+  /**
+   * Should the footer admit the data may be out of date. Deliberately not
+   * `isStale()`: with a five-minute timer, a sixty-second staleness window
+   * would claim to be offline four minutes out of every five.
+   */
+  looksOffline() {
+    if (this.error || !this.fetchedAt) return true;
+    const minutes = this.settings.refreshMinutes;
+    const grace = minutes ? minutes * 3 * 60 : 600;
+    return (Date.now() - this.fetchedAt.getTime()) / 1000 > grace;
+  }
+
   async saveSettings() {
     await this.saveData(this.settings);
     this.client(true);
+    this.applyRefreshTimer();
   }
 
   /* -------------------------------------------------------------- loading */
@@ -172,15 +229,16 @@ export default class NextcloudTasksPlugin extends Plugin {
       now,
       lists,
       unknownList: !!cfg.list && !lists.some((l) => l.key === cfg.list),
-      rows: state === 'ready' ? selectTasks(this.entries, cfg, now, lists) : [],
+      rows: state === 'ready' ? selectTasks(this.entries, cfg, now, lists, this.stickyDone) : [],
       grouped: !cfg.list,
-      stale: state === 'ready' && (this.error || this.isStale()),
+      stale: state === 'ready' && this.looksOffline(),
       fetchedAt: this.fetchedAt ? hhmm(this.fetchedAt) : '',
       message: this.error || '',
     }, {
       onCreate: (listKey) => this.promptNewTask(listKey || null),
       onRefresh: () => this.refresh(true),
       onToggle: (entry, done, settle) => this.toggle(entry, done, settle),
+      onEdit: (entry) => this.promptEditTask(entry),
     });
   }
 
@@ -190,10 +248,12 @@ export default class NextcloudTasksPlugin extends Plugin {
     try {
       await this.client().setDone(entry.url, done);
       entry.done = done;
-      // Deliberately no immediate redraw: the row stays visible, greyed out,
-      // until the next refresh. A task that vanishes the instant you tick it
-      // gives you no chance to notice you ticked the wrong one.
+      // Remembered so the row survives every later refresh, greyed out rather
+      // than gone. That is what makes redrawing safe: without it, the task you
+      // just ticked would disappear from under the cursor.
+      if (done) this.stickyDone.add(entry.url); else this.stickyDone.delete(entry.url);
       settle(true);
+      this.drawAll();               // every block agrees, not only the one you clicked
     } catch (e) {
       console.error('[nextcloud-tasks]', e);
       new Notice(t('notice.saveFailed', { error: message(e) }));
@@ -209,7 +269,8 @@ export default class NextcloudTasksPlugin extends Plugin {
     const available = enabledLists(this.settings);
     const chosen = available.find((l) => l.key === preselect) || available[0];
 
-    new NewTaskModal(this.app, {
+    new TaskModal(this.app, {
+      mode: 'create',
       lists: available,
       listKey: chosen.key,
       onSubmit: async (values) => {
@@ -217,14 +278,65 @@ export default class NextcloudTasksPlugin extends Plugin {
         try {
           await this.client().createTask(target.url, {
             summary: values.summary,
-            due: values.due ? new Date(`${values.due}T00:00:00`) : null,
-            priority: values.priority ? parseInt(values.priority, 10) : 0,
+            due: values.due,
+            priority: values.priority,
           });
           new Notice(t('notice.created', { list: target.label || target.key }));
           await this.refresh(false);
         } catch (e) {
           console.error('[nextcloud-tasks]', e);
           new Notice(t('notice.createFailed', { error: message(e) }));
+        }
+      },
+    }).open();
+  }
+
+  /**
+   * Clicking a task opens the same dialog that creates one, prefilled. What
+   * comes back is only what the user actually changed, which is then the only
+   * thing written: everything else about the task keeps whichever client's
+   * bytes it already had.
+   */
+  promptEditTask(entry) {
+    const lists = this.settings.lists;
+    const list = lists.find((l) => l.key === entry.listKey);
+
+    new TaskModal(this.app, {
+      mode: 'edit',
+      lists: list ? [list] : lists,
+      listKey: list ? list.key : (lists[0] && lists[0].key) || '',
+      summary: entry.todo.summary || '',
+      due: dateInputValue(entry.todo.due),
+      priority: entry.todo.priority || 0,
+      onSubmit: async (fields) => {
+        if (!Object.keys(fields).length) return;        // nothing moved, nothing written
+        try {
+          await this.client().updateTask(entry.url, fields);
+          new Notice(t('notice.updated'));
+          await this.refresh(false);
+        } catch (e) {
+          console.error('[nextcloud-tasks]', e);
+          new Notice(t('notice.saveFailed', { error: message(e) }));
+        }
+      },
+      onDelete: () => this.confirmDelete(entry),
+    }).open();
+  }
+
+  confirmDelete(entry) {
+    new ConfirmModal(this.app, {
+      title: t('modal.confirmDelete.title'),
+      body: t('modal.confirmDelete.body', { title: entry.todo.summary || t('row.untitled') }),
+      confirmText: t('btn.delete'),
+      onConfirm: async () => {
+        try {
+          await this.client().deleteTask(entry.url);
+          this.stickyDone.delete(entry.url);
+          new Notice(t('notice.deleted'));
+          await this.refresh(false);
+        } catch (e) {
+          console.error('[nextcloud-tasks]', e);
+          new Notice(t('notice.deleteFailed', { error: message(e) }));
         }
       },
     }).open();

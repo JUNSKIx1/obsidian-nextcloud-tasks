@@ -217,6 +217,20 @@ class NextcloudTasksSettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
 
     new Setting(containerEl)
+      .setName(t('set.refresh'))
+      .setDesc(t('set.refreshDesc'))
+      .addDropdown((drop) => {
+        drop.addOption('0', t('set.refreshOff'));
+        drop.addOption('1', t('set.refreshOneMinute'));
+        for (const n of [2, 5, 10, 15, 30]) drop.addOption(String(n), t('set.refreshMinutes', { n }));
+        drop.setValue(String(s.refreshMinutes)).onChange(async (v) => {
+          s.refreshMinutes = parseInt(v, 10) || 0;
+          await this.save();            // saveSettings restarts the timer
+          this.plugin.drawAll();        // the footer's patience depends on it
+        });
+      });
+
+    new Setting(containerEl)
       .setName(t('set.language'))
       .setDesc(t('set.languageDesc'))
       .addDropdown((drop) => {

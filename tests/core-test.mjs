@@ -299,6 +299,75 @@ eq(ics.setCompletion(ical('BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:e', 'END:VEVEN
   eq(ics.parseTodos(out)[0].status, 'COMPLETED', 'ics: LF-Datei korrekt bearbeitet');
 }
 
+/* --- setFields: dasselbe Versprechen für Titel, Datum und Priorität ------- */
+
+const EDIT_NOW = { now: new Date(Date.UTC(2026, 7, 14, 15, 30, 0)) };
+
+{
+  const out = ics.setFields(TASK, { summary: 'Zahnarzt absagen' }, EDIT_NOW);
+  const t = ics.parseTodos(out)[0];
+  eq(t.summary, 'Zahnarzt absagen', 'ics: SUMMARY geändert');
+  eq(t.sequence, 4, 'ics: SEQUENCE hochgezählt');
+  ok(out.includes('LAST-MODIFIED:20260814T153000Z'), 'ics: LAST-MODIFIED aktualisiert');
+
+  // Same invariant as setCompletion, and the entire reason setFields exists.
+  const touched = new Set(['SUMMARY', 'LAST-MODIFIED', 'DTSTAMP', 'SEQUENCE']);
+  const keep = (text) => ics.splitPhysical(text)
+    .filter((p) => !touched.has(ics.propName(p.text)))
+    .map((p) => p.text + p.eol);
+  deep(keep(out), keep(TASK), 'ics: setFields lässt jede andere Zeile byteidentisch');
+  ok(out.includes('RRULE:FREQ=WEEKLY;BYDAY=MO'), 'ics: RRULE überlebt eine Titeländerung');
+  ok(out.includes('X-APPLE-SORT-ORDER:12'), 'ics: unbekannte X-Property überlebt');
+  ok(out.includes('BEGIN:VALARM') && out.includes('TRIGGER:-PT15M'), 'ics: VALARM überlebt');
+  eq(t.status, 'NEEDS-ACTION', 'ics: der Erledigt-Status bleibt unangetastet');
+  eq(t.priority, 1, 'ics: eine nicht angefasste PRIORITY bleibt');
+  eq(t.due.allDay, true, 'ics: ein nicht angefasstes DUE bleibt');
+}
+
+{
+  // undefined heißt „nicht anfassen" — sonst würde eine Titelkorrektur eine
+  // Uhrzeit in einen ganzen Tag verwandeln.
+  const timed = ical('BEGIN:VCALENDAR', 'BEGIN:VTODO', 'UID:z', 'SUMMARY:Termin',
+    'DUE;TZID=Europe/Berlin:20260820T140000', 'END:VTODO', 'END:VCALENDAR');
+
+  const renamed = ics.setFields(timed, { summary: 'Termin verschoben' }, EDIT_NOW);
+  ok(renamed.includes('DUE;TZID=Europe/Berlin:20260820T140000'),
+    'ics: ein nicht angefasstes DUE behält Zeitzone und Uhrzeit');
+
+  const dated = ics.setFields(timed, { due: new Date(2026, 8, 1) }, EDIT_NOW);
+  ok(dated.includes('DUE;VALUE=DATE:20260901'), 'ics: gesetztes DUE wird ganztägig geschrieben');
+  ok(!dated.includes('TZID'), 'ics: das alte DUE ist ersetzt, nicht verdoppelt');
+
+  const cleared = ics.setFields(timed, { due: null }, EDIT_NOW);
+  ok(!/[\r\n]DUE/.test(cleared), 'ics: due: null entfernt die Zeile');
+  eq(ics.parseTodos(cleared)[0].summary, 'Termin', 'ics: der Rest bleibt beim Entfernen unberührt');
+}
+
+{
+  ok(!/[\r\n]PRIORITY:/.test(ics.setFields(TASK, { priority: 0 }, EDIT_NOW)),
+    'ics: Priorität 0 heißt „unbestimmt" und entfernt die Zeile');
+  ok(ics.setFields(TASK, { priority: 9 }, EDIT_NOW).includes('PRIORITY:9'), 'ics: PRIORITY ersetzt');
+  ok(!/[\r\n]PRIORITY:/.test(ics.setFields(TASK, { priority: 42 }, EDIT_NOW)),
+    'ics: eine unsinnige Priorität wird entfernt statt geschrieben');
+}
+
+{
+  const long = 'Sehr langer Titel mit Umlauten äöü der garantiert über fünfundsiebzig '
+    + 'Oktette hinausgeht und deshalb gefaltet werden muss';
+  const out = ics.setFields(TASK, { summary: `${long}; mit, Sonderzeichen` }, EDIT_NOW);
+  eq(ics.parseTodos(out)[0].summary, `${long}; mit, Sonderzeichen`,
+    'ics: langer Titel mit Sonderzeichen liest sich unversehrt zurück');
+  eq(out.split(CRLF).filter((l) => ics.byteLength(l) > 75).length, 0,
+    'ics: der neue Titel ist auf 75 Oktette gefaltet, ohne Zeichen zu zerschneiden');
+}
+
+{
+  eq(ics.setFields(TASK, {}, EDIT_NOW), TASK, 'ics: ohne Änderung bleibt der Text identisch — kein PUT nötig');
+  eq(ics.setFields(TASK, undefined, EDIT_NOW), TASK, 'ics: gar keine Felder ist auch keine Änderung');
+  eq(ics.setFields(ical('BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:e', 'END:VEVENT', 'END:VCALENDAR'), { summary: 'x' }),
+    null, 'ics: ohne VTODO wird auch hier nichts geschrieben');
+}
+
 /* ============================================================== caldav.js */
 
 const BASE = 'https://cloud.example.com';
@@ -493,6 +562,46 @@ eq(basicAuth('alice', 'gehäim'), `Basic ${Buffer.from('alice:gehäim', 'utf8').
     eq(puts, 2, 'caldav: 412 führt zu genau einem zweiten Versuch');
     eq(request.calls.filter((c) => c.method === 'GET').length, 2, 'caldav: vor dem zweiten PUT wird neu gelesen');
     eq(res.etag, '"ok"', 'caldav: ETag nach erfolgreichem Wiederholen');
+  }
+
+  /* ---- editing ---- */
+  {
+    let stored = TASK;
+    const { dav, request } = client([
+      { method: 'GET', reply: () => ({ status: 200, text: stored, headers: { etag: '"etag-1"' } }) },
+      { method: 'PUT', reply: (req) => { stored = req.body; return { status: 204, headers: { etag: '"etag-2"' } }; } },
+    ]);
+    const url = `${BASE}/remote.php/dav/calendars/alice/persoenlich/abc-123.ics`;
+
+    const res = await dav.updateTask(url, { summary: 'Anders' });
+    const put = request.calls.find((c) => c.method === 'PUT');
+    eq(put.headers['If-Match'], '"etag-1"', 'caldav: Ändern schickt If-Match mit');
+    eq(res.unchanged, false, 'caldav: als geschrieben gemeldet');
+    eq(ics.parseTodos(stored)[0].summary, 'Anders', 'caldav: der neue Titel steht auf dem Server');
+    ok(stored.includes('RRULE:FREQ=WEEKLY;BYDAY=MO'), 'caldav: die Wiederholung hat das Ändern überlebt');
+    ok(stored.includes('X-APPLE-SORT-ORDER:12'), 'caldav: fremde Properties überleben das Ändern');
+    eq(ics.parseTodos(stored)[0].priority, 1, 'caldav: nicht angefasste Felder bleiben stehen');
+  }
+
+  {
+    // Nothing to change must not cost a PUT.
+    const { dav, request } = client([
+      { method: 'GET', reply: { status: 200, text: TASK, headers: { etag: '"e"' } } },
+      { method: 'PUT', reply: { status: 204 } },
+    ]);
+    const res = await dav.updateTask(`${BASE}/x/abc.ics`, {});
+    eq(res.unchanged, true, 'caldav: ohne Änderung wird nichts geschrieben');
+    eq(request.calls.filter((c) => c.method === 'PUT').length, 0, 'caldav: und wirklich kein PUT gesendet');
+  }
+
+  {
+    const { dav, request } = client([{ method: 'DELETE', reply: { status: 204 } }]);
+    await dav.deleteTask(`${BASE}/x/abc.ics`);
+    eq(request.calls[0].method, 'DELETE', 'caldav: Löschen ist ein DELETE');
+
+    const gone = client([{ method: 'DELETE', reply: { status: 404 } }]);
+    await gone.dav.deleteTask(`${BASE}/x/weg.ics`);
+    ok(true, 'caldav: eine bereits gelöschte Aufgabe ist kein Fehler');
   }
 
   await throws(
