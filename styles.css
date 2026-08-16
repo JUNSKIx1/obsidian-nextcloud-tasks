@@ -1,0 +1,247 @@
+/*
+ * Nextcloud Tasks.
+ *
+ * Written against Obsidian's own theme variables, so the panel inherits
+ * whatever theme the reader uses instead of imposing a palette. The single
+ * plugin-owned custom property is --nct-accent, set per group from the colour
+ * configured for that list; it falls back to the theme accent when a list has
+ * no colour of its own.
+ */
+
+.nct-panel {
+  --nct-accent: var(--color-accent);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  background: var(--background-primary);
+  padding: 0.9rem 1.1rem 1rem;
+  margin: 0.4rem 0 1rem;
+}
+
+/* ------------------------------------------------------------------ head */
+
+.nct-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.nct-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.nct-tools {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.nct-btn {
+  padding: 0.24em 0.65em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.8rem;
+  font-weight: 550;
+  line-height: 1.5;
+  cursor: pointer;
+  box-shadow: none;
+  transition: border-color 110ms ease, color 110ms ease;
+}
+
+.nct-btn:hover {
+  border-color: var(--nct-accent);
+  color: var(--nct-accent);
+}
+
+.nct-btn.is-quiet {
+  color: var(--text-muted);
+  padding-inline: 0.5em;
+}
+
+/* ---------------------------------------------------------------- groups */
+
+.nct-group + .nct-group {
+  margin-top: 0.75rem;
+}
+
+.nct-group-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.nct-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------------------------------------------ rows */
+
+.nct-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.34rem 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.nct-row:last-child {
+  border-bottom: none;
+}
+
+.nct-what {
+  flex: 1;
+  min-width: 0;
+}
+
+.nct-summary {
+  font-size: 0.92rem;
+}
+
+.nct-check {
+  flex-shrink: 0;
+  align-self: center;
+  margin: 0;
+  accent-color: var(--nct-accent);
+  cursor: pointer;
+}
+
+.nct-row.is-done .nct-summary {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* While the PUT is in flight. It reverts by itself if the server says no. */
+.nct-row.is-pending {
+  opacity: 0.55;
+}
+
+.nct-flag {
+  margin-left: 0.4em;
+  font-weight: 700;
+  color: var(--text-error);
+}
+
+.nct-due {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.nct-due.is-overdue {
+  color: var(--text-error);
+  font-weight: 640;
+}
+
+.nct-due.is-today {
+  color: var(--nct-accent);
+  font-weight: 640;
+}
+
+/* --------------------------------------------------------- notes & feet */
+
+.nct-empty,
+.nct-foot {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.nct-foot {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.nct-note {
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  padding: 0.5rem 0.7rem;
+  border-left: 3px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-secondary);
+  margin: 0.4rem 0;
+}
+
+/* --------------------------------------------------------------- modals */
+
+.nct-modal .nct-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.nct-probe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.6rem 0 1rem;
+}
+
+.nct-probe-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.nct-probe-mark {
+  font-weight: 700;
+}
+
+.nct-probe-row.is-ok .nct-probe-mark {
+  color: var(--text-success);
+}
+
+.nct-probe-row.is-bad .nct-probe-mark {
+  color: var(--text-error);
+}
+
+.nct-probe-label {
+  font-size: 0.88rem;
+  font-weight: 550;
+}
+
+.nct-probe-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+/* ------------------------------------------------------------- settings */
+
+/* A list row carries a toggle, two text fields, a colour and two arrows.
+   Let the controls wrap rather than squeeze the name off the screen. */
+.nct-settings .nct-list-row .setting-item-control {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.nct-settings .nct-list-row input[type="text"] {
+  width: 9rem;
+  min-width: 6rem;
+}
+
+@media (max-width: 600px) {
+  .nct-row {
+    padding: 0.5rem 0;
+  }
+
+  .nct-check {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .nct-btn {
+    padding: 0.4em 0.8em;
+  }
+}
