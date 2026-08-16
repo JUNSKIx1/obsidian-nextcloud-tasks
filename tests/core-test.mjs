@@ -445,7 +445,7 @@ const DISCOVERY_ROUTES = [
 
 const client = (routes) => {
   const request = fakeHttp(routes);
-  return { dav: new CalDav({ baseUrl: BASE, username: 'ncp', password: 'app-pw', request }), request };
+  return { dav: new CalDav({ baseUrl: BASE, username: 'alice', password: 'app-pw', request }), request };
 };
 
 eq(normalizeBase('cloud.example.com/index.php/'), 'https://cloud.example.com', 'caldav: Basis-URL normalisiert');
