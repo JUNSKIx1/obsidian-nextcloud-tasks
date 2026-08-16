@@ -1,7 +1,7 @@
 {
   "name": "obsidian-nextcloud-tasks",
-  "version": "1.0.0",
-  "description": "Read, create and complete Nextcloud Tasks from inside Obsidian over CalDAV. Nothing is copied into the vault.",
+  "version": "1.0.1",
+  "description": "Read, create, edit and complete Nextcloud Tasks from inside Obsidian over CalDAV. Nothing is copied into the vault.",
   "main": "main.js",
   "type": "module",
   "private": true,

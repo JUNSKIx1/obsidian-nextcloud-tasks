@@ -1,9 +1,9 @@
 {
   "id": "nextcloud-tasks",
   "name": "Nextcloud Tasks",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.5.0",
-  "description": "Read, create and complete your Nextcloud Tasks in a note, over CalDAV. Tasks stay on the server: nothing is copied into the vault.",
+  "description": "Read, create, edit and complete your Nextcloud Tasks in a note, over CalDAV. Your tasks stay on the server: no markdown mirror, no checkboxes in your notes, nothing that can drift out of sync.",
   "author": "JUNSKIx1",
   "authorUrl": "https://github.com/JUNSKIx1",
   "isDesktopOnly": false
