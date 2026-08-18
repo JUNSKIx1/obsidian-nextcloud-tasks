@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 360" width="620" height="360" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .card { fill: #ffffff; stroke: #d0d3d7; stroke-width: 1.5; rx: 12; }
+      .hd   { fill: #202124; font-size: 15px; font-weight: 700; }
+      .grph { fill: #202124; font-size: 13.5px; font-weight: 700; }
+      .task { fill: #202124; font-size: 13.5px; }
+      .mute { fill: #80868b; font-size: 12px; }
+      .over { fill: #c5221f; font-size: 12px; font-weight: 600; }
+      .box  { fill: #ffffff; stroke: #80868b; stroke-width: 1.5; rx: 3.5; }
+      .sep  { stroke: #e8eaed; stroke-width: 1; }
+      .done { fill: #80868b; font-size: 13.5px; text-decoration: line-through; }
+    </style>
+  </defs>
+
+  <rect class="card" x="8" y="8" width="604" height="344"/>
+
+  <!-- header -->
+  <text class="hd" x="26" y="42">✅ Tasks</text>
+  <text class="hd" x="516" y="42">➕  📋  ↻</text>
+  <line class="sep" x1="20" y1="58" x2="600" y2="58"/>
+
+  <!-- group 1 -->
+  <rect x="26" y="74" width="4" height="16" fill="#1a73e8" rx="2"/>
+  <text class="grph" x="40" y="88">Errands</text>
+  <text class="mute" x="112" y="88">▾</text>
+
+  <rect class="box" x="42" y="104" width="15" height="15"/>
+  <text class="task" x="68" y="117">Pick up the parcel</text>
+  <text class="over" x="440" y="117">⚠ 2 days overdue</text>
+  <text x="580" y="117" font-size="13" fill="#c5221f">⚑</text>
+
+  <rect class="box" x="42" y="134" width="15" height="15"/>
+  <text class="task" x="68" y="147">Buy oat milk</text>
+  <text class="mute" x="470" y="147">today</text>
+  <text x="580" y="147" font-size="13" fill="#f9ab00">⚑</text>
+
+  <text class="mute" x="68" y="175">+ 3 more</text>
+
+  <!-- add row -->
+  <rect x="42" y="188" width="540" height="26" fill="#f8f9fa" stroke="#dadce0" stroke-width="1" rx="6"/>
+  <text class="mute" x="54" y="206">＋ new task…</text>
+  <text class="mute" x="522" y="206">📅  ⚑</text>
+
+  <!-- group 2 -->
+  <rect x="26" y="240" width="4" height="16" fill="#188038" rx="2"/>
+  <text class="grph" x="40" y="254">Work</text>
+  <text class="mute" x="98" y="254">▸</text>
+  <text class="mute" x="118" y="254">7</text>
+
+  <rect class="box" x="42" y="270" width="15" height="15" fill="#e8eaed"/>
+  <text x="45.5" y="282" font-size="12" fill="#5f6368">✓</text>
+  <text class="done" x="68" y="283">Send the invoice</text>
+  <text class="mute" x="470" y="283">yesterday</text>
+
+  <rect class="box" x="42" y="300" width="15" height="15"/>
+  <text class="task" x="68" y="313">Draft the release notes</text>
+  <text class="mute" x="470" y="313">Fri</text>
+  <text x="580" y="313" font-size="13" fill="#1a73e8">⚑</text>
+
+  <line class="sep" x1="20" y1="332" x2="600" y2="332"/>
+</svg>

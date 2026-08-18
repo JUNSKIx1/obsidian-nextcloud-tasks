@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 340" width="940" height="340" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368"/>
+    </marker>
+    <style>
+      .box  { rx: 12; stroke: #5f6368; stroke-width: 1.5; }
+      .lbl  { fill: #202124; font-size: 15px; font-weight: 600; }
+      .sub  { fill: #3c4043; font-size: 12.5px; }
+      .cap  { fill: #5f6368; font-size: 11.5px; text-anchor: middle; }
+      .grp  { fill: none; stroke: #9aa0a6; stroke-width: 1.2; stroke-dasharray: 5 4; rx: 14; }
+      .grpt { fill: #5f6368; font-size: 12px; font-weight: 600; letter-spacing: .06em; }
+      .arr  { stroke: #5f6368; stroke-width: 2; fill: none; marker-end: url(#a); }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="940" height="340" fill="#fbfbfc" rx="10"/>
+
+  <!-- vault -->
+  <rect class="grp" x="14" y="36" width="236" height="272"/>
+  <text class="grpt" x="30" y="26">📓 YOUR VAULT</text>
+
+  <rect class="box" x="32" y="62" width="200" height="92" fill="#e8f0fe"/>
+  <text class="lbl" x="48" y="88">📝 A note</text>
+  <text class="sub" x="48" y="110">```nextcloud-tasks</text>
+  <text class="sub" x="48" y="128">preview: 3</text>
+  <text class="sub" x="48" y="146">```</text>
+
+  <rect class="box" x="32" y="186" width="200" height="98" fill="#e8f0fe"/>
+  <text class="lbl" x="48" y="212">⚙️ Settings</text>
+  <text class="sub" x="48" y="234">server · user · password</text>
+  <text class="sub" x="48" y="254">which lists to show,</text>
+  <text class="sub" x="48" y="272">their names and colours</text>
+
+  <!-- plugin -->
+  <rect class="grp" x="298" y="36" width="204" height="272"/>
+  <text class="grpt" x="314" y="26">🧠 MEMORY ONLY</text>
+
+  <rect class="box" x="316" y="112" width="168" height="120" fill="#e6f4ea"/>
+  <text class="lbl" x="332" y="142">🔌 The plugin</text>
+  <text class="sub" x="332" y="166">this session's tasks</text>
+  <text class="sub" x="332" y="188">✗ no cache file</text>
+  <text class="sub" x="332" y="210">✗ no checkboxes</text>
+  <text class="sub" x="332" y="226">   written to notes</text>
+
+  <!-- nextcloud -->
+  <rect class="grp" x="688" y="36" width="238" height="272"/>
+  <text class="grpt" x="704" y="26">☁️ YOUR NEXTCLOUD</text>
+
+  <rect class="box" x="706" y="64" width="202" height="50" fill="#fef7e0"/>
+  <text class="lbl" x="726" y="94">📋 Errands</text>
+  <rect class="box" x="706" y="130" width="202" height="50" fill="#fef7e0"/>
+  <text class="lbl" x="726" y="160">📋 Work</text>
+  <rect class="box" x="706" y="196" width="202" height="50" fill="#fef7e0"/>
+  <text class="lbl" x="726" y="226">📋 …any list you tick</text>
+  <text class="cap" x="807" y="272">the only copy of your tasks</text>
+
+  <!-- vault -> plugin -->
+  <path class="arr" d="M 232 108 C 272 108 274 152 314 152"/>
+  <path class="arr" d="M 232 234 C 272 234 274 192 314 192"/>
+
+  <!-- plugin <-> nextcloud -->
+  <text class="cap" x="594" y="96">reads on open</text>
+  <text class="cap" x="594" y="110">and on a timer</text>
+  <path class="arr" d="M 486 124 L 702 124"/>
+  <text class="cap" x="594" y="140">PROPFIND · REPORT</text>
+
+  <path class="arr" d="M 702 168 L 488 168"/>
+  <text class="cap" x="594" y="186">the tasks themselves</text>
+
+  <text class="cap" x="594" y="216">tick · add · edit · delete</text>
+  <path class="arr" d="M 486 232 L 702 232"/>
+  <text class="cap" x="594" y="250">PUT · DELETE, at once</text>
+</svg>
