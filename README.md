@@ -4,7 +4,7 @@ Read, create, edit and complete your **Nextcloud Tasks** right inside a note —
 copy of your data in the vault.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/JUNSKIx1/obsidian-nextcloud-tasks/master/docs/panel.svg" alt="A task panel in a note: two lists with headings and colours, due dates, priority flags, a '+3 more' line and a blank row to type a new task into" width="620">
+  <img src="https://raw.githubusercontent.com/JUNSKIx1/obsidian-nextcloud-tasks/refs/heads/master/docs/panel.svg" alt="A task panel in a note: two lists with headings and colours, due dates, priority flags, a '+3 more' line and a blank row to type a new task into" width="620">
 </p>
 
 ---
@@ -18,7 +18,7 @@ at risk of drifting apart. This one writes nothing to disk, not even a cache: it
 writes your change straight back.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/JUNSKIx1/obsidian-nextcloud-tasks/master/docs/flow.svg" alt="Flow: a note's code block and the plugin settings feed the plugin, which holds tasks in memory only and talks to Nextcloud with PROPFIND/REPORT to read and PUT/DELETE to write" width="900">
+  <img src="https://raw.githubusercontent.com/JUNSKIx1/obsidian-nextcloud-tasks/refs/heads/master/docs/flow.svg" alt="Flow: a note's code block and the plugin settings feed the plugin, which holds tasks in memory only and talks to Nextcloud with PROPFIND/REPORT to read and PUT/DELETE to write" width="900">
 </p>
 
 Plain JavaScript, no dependencies, no native code — the same build runs on desktop and phone. 📱
