@@ -4,12 +4,18 @@
  * Written against Obsidian's own theme variables, so the panel inherits
  * whatever theme the reader uses instead of imposing a palette. The single
  * plugin-owned custom property is --nct-accent, set per group from the colour
- * configured for that list; it falls back to the theme accent when a list has
- * no colour of its own.
+ * configured for that list; it falls back to the vault accent when a list has
+ * no colour of its own. It carries the checkbox, the chevron and count of a
+ * fold, hovers, and the focus line of the blank row — everything that belongs
+ * to *this list*, the send button included: the row writes into that list, so
+ * it is filled with that list's colour.
  */
 
 .nct-panel {
   --nct-accent: var(--color-accent);
+  /* The checkbox column: what the titles, the blank row and the dividers all
+     line up against. --checkbox-size is Obsidian's own. */
+  --nct-indent: calc(var(--checkbox-size, 16px) + 0.6rem);
   border: 1px solid var(--background-modifier-border);
   border-radius: 12px;
   background: var(--background-primary);
@@ -65,6 +71,20 @@
   padding-inline: 0.5em;
 }
 
+/* Icon-only: the label lives in aria-label, which Obsidian also shows on hover. */
+.nct-btn.is-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3em;
+  line-height: 0;
+}
+
+.nct-btn.is-icon svg {
+  width: var(--icon-s, 1rem);
+  height: var(--icon-s, 1rem);
+}
+
 /* ---------------------------------------------------------------- groups */
 
 .nct-group + .nct-group {
@@ -74,13 +94,82 @@
 .nct-group-label {
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--nct-accent);
   margin-bottom: 0.2rem;
 }
 
 .nct-list {
   display: flex;
   flex-direction: column;
+}
+
+/*
+ * A foldable heading is the heading itself, made pressable: same size, same
+ * weight, same colour, with a chevron in front. All the button chrome has to go
+ * or the panel grows a row of grey boxes.
+ */
+.nct-title.is-toggle,
+.nct-group-label.is-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  cursor: var(--cursor);
+}
+
+.nct-title.is-toggle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.nct-group-label.is-toggle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--nct-accent);
+  margin-bottom: 0.2rem;
+}
+
+.nct-title.is-toggle:hover,
+.nct-group-label.is-toggle:hover {
+  background: none;
+  filter: brightness(1.25);
+}
+
+.nct-chevron {
+  display: inline-flex;
+  align-items: center;
+  color: var(--nct-accent);
+}
+
+/* Bigger and heavier than a decorative caret: it is the control for the fold. */
+.nct-chevron svg {
+  width: 1.25em;
+  height: 1.25em;
+  stroke-width: 3;
+}
+
+/* How many rows the fold is holding back. Tabular so it does not jitter. */
+.nct-count {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--nct-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.nct-none {
+  padding: 0.34rem 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
 }
 
 /* ------------------------------------------------------------------ rows */
@@ -90,11 +179,25 @@
   align-items: baseline;
   gap: 0.6rem;
   padding: 0.34rem 0;
+  position: relative;
+}
+
+/*
+ * The divider is drawn, not bordered, so it can start where the text starts
+ * instead of under the checkbox. A border would always span the whole row.
+ */
+.nct-row::after,
+.nct-new::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: var(--nct-indent);
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.nct-row:last-child {
-  border-bottom: none;
+.nct-list > :last-child::after {
+  display: none;
 }
 
 .nct-what {
@@ -151,10 +254,157 @@ button.nct-summary:focus-visible {
   opacity: 0.55;
 }
 
+/* Priority. Every level is marked — a level that shows nothing reads as a bug. */
 .nct-flag {
-  margin-left: 0.4em;
-  font-weight: 700;
-  color: var(--text-error);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.nct-flag svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+.nct-flag.is-high,
+.nct-flag-btn.is-high {
+  color: var(--color-red);
+}
+
+.nct-flag.is-medium,
+.nct-flag-btn.is-medium {
+  color: var(--color-orange);
+}
+
+.nct-flag.is-low,
+.nct-flag-btn.is-low {
+  color: var(--color-blue);
+}
+
+/* ------------------------------------------------------------- quick add */
+
+/*
+ * The blank row opens the list and has to read as one of its rows: same height,
+ * same divider, same type. No checkbox spacer — there is nothing to tick yet,
+ * and an empty column in front of an empty field reads as a missing control.
+ *
+ * The input's own chrome is taken off with a selector deliberately more specific
+ * than a theme's `input[type="text"]`, or the row comes back as a grey box.
+ */
+.nct-new {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.34rem 0 0.34rem var(--nct-indent);
+  position: relative;
+}
+
+.nct-new:focus-within::after {
+  border-bottom-color: var(--nct-accent);
+}
+
+.nct-panel .nct-new input.nct-new-input {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: 0.92rem;
+  line-height: inherit;
+  color: var(--text-normal);
+}
+
+.nct-panel .nct-new input.nct-new-input:focus,
+.nct-panel .nct-new input.nct-new-input:focus-visible,
+.nct-panel .nct-new input.nct-new-input:hover,
+.nct-panel .nct-new input.nct-new-input:active {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.nct-new-input::placeholder {
+  color: var(--text-faint);
+}
+
+.nct-new-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.nct-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: auto;
+  height: auto;
+  padding: 0.2rem 0.3rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: var(--cursor);
+}
+
+.nct-mini:hover {
+  background: var(--background-modifier-hover);
+  color: var(--nct-accent);
+}
+
+.nct-mini svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+/* A date already chosen is information, so it takes the list's colour. */
+.nct-mini.is-set {
+  color: var(--nct-accent);
+}
+
+/* The one filled control in the row, in the colour of the list it writes to. */
+.nct-send {
+  background: var(--nct-accent);
+  color: var(--text-on-accent);
+}
+
+.nct-send:hover {
+  background: var(--nct-accent);
+  color: var(--text-on-accent);
+  filter: brightness(1.15);
+}
+
+.nct-send:disabled {
+  background: var(--nct-accent);
+  color: var(--text-on-accent);
+  opacity: 0.4;
+  cursor: default;
+}
+
+.nct-mini-text {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The real date input, present for the picker and never seen. */
+.nct-date {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .nct-due {

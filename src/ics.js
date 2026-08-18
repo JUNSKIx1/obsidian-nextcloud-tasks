@@ -486,6 +486,8 @@ function setFields(icsText, fields, opts) {
     props.DUE = ok ? `DUE;VALUE=DATE:${icsDay(f.due)}` : null;
   }
   if (f.priority !== undefined) {
+    // 0 is RFC 5545's "unset", and so is anything outside 1..9: remove the line
+    // rather than write a level no client agrees on.
     const p = parseInt(f.priority, 10);
     props.PRIORITY = p >= 1 && p <= 9 ? `PRIORITY:${p}` : null;
   }

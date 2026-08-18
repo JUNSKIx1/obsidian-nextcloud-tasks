@@ -73,9 +73,17 @@ Put a fenced block in any note:
 ````markdown
 ```nextcloud-tasks
 all
-limit: 8
+preview: 3
 ```
 ````
+
+Every list you ticked gets its own heading, even when there is nothing in it, and shows its first
+two tasks. If it has more, the heading grows an arrow and the number it is holding back — press it
+to unfold that list, press it again to fold it away.
+
+Each list ends in a **blank row**: type a title, press Enter, and the task is on the server. The two
+small buttons on the right of that row set a due date and a priority for it first; Escape clears the
+row. Nothing you type is lost to a background refresh.
 
 Every line is optional:
 
@@ -84,7 +92,8 @@ Every line is optional:
 | `all` (or an empty block) | every list you ticked, grouped by list. This is the default. |
 | `list: errands` | one list only, by its key |
 | `os: errands` | the same thing, kept working for notes written against older versions |
-| `limit: 8` | show at most this many rows |
+| `preview: 3` | rows shown per list before the **+n more** line. `preview: 0` shows every task |
+| `limit: 8` | show at most this many rows **in total**. A hard ceiling, applied before the lists are split up, so a busy list can use it all up — `preview` is usually what you want |
 | `due: today` | only what is due today. **Overdue is always included**, or it would vanish silently |
 | `due: week` | only what is due within seven days, overdue included |
 | `done: true` | show completed tasks as well |
@@ -93,8 +102,11 @@ Every line is optional:
 `due: heute`, `due: woche` and `done: ja` are accepted too, so a note keeps its meaning if you
 switch Obsidian's language.
 
-Rows sort the way you would triage them: overdue first, then by due date, undated last. Within one
-day the higher priority wins, and a tie falls back to the order you put your lists in.
+Rows sort the way you would triage them: overdue first, then by due date, undated last, and a tie
+falls back to the order you put your lists in.
+
+The panel header carries three icons: **new task**, **new list** (in a block showing every list) and
+**refresh**.
 
 ## Working with a task
 
@@ -175,7 +187,10 @@ Things that look like details and are not:
 - **Completion is judged in the client**, because three clients express it three ways: `STATUS`,
   a bare `COMPLETED:` property, or `PERCENT-COMPLETE:100`. A server-side filter that gets this
   wrong hides tasks, which is worse than showing one too many.
-- **`PRIORITY:0` means unset**, not "most urgent". RFC 5545 counts 1 as the highest.
+- **Priority follows RFC 5545, where 1 is the most urgent and 0 means unset**: 1–4 shows as high,
+  5 as medium, 6–9 as low, and every one of them gets a coloured flag. Marking only the top band is
+  what made an earlier version look broken — the level was written to the server correctly and then
+  displayed as nothing at all.
 - **Discovery walks the real chain**, `current-user-principal` to `calendar-home-set` to the
   collections in it, instead of guessing `/remote.php/dav/calendars/<user>/`. Fifteen lines, and one
   whole class of username casing bug disappears.

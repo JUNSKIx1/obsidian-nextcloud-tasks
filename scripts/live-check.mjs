@@ -115,6 +115,23 @@ const check = (ok, msg, extra) => {
     check(mine.todo.summary === title, 'the title is unchanged', mine.todo.summary);
     check(!!mine.todo.due && mine.todo.due.allDay, 'the due date is stored as an all-day date');
     check(mine.done === false, 'it is open');
+    check(mine.todo.priority === 5, 'the priority reached the server', `PRIORITY:${mine.todo.priority}`);
+  }
+
+  // This is the one the plugin got wrong before: it wrote every level correctly
+  // and displayed only the top one, so "medium" looked like it did nothing.
+  console.log('\n  Priority');
+  if (mine) {
+    for (const level of [1, 5, 9]) {
+      await dav.updateTask(mine.url, { priority: level });
+      const back = (await dav.listTasks(list.url)).find((e) => e.todo.uid === created.uid);
+      check(!!back && back.todo.priority === level, `PRIORITY:${level} survives the round trip`,
+        back ? `read back as ${back.todo.priority}` : 'not found');
+    }
+    await dav.updateTask(mine.url, { priority: 0 });
+    const cleared = (await dav.listTasks(list.url)).find((e) => e.todo.uid === created.uid);
+    check(!!cleared && !cleared.todo.priority, 'clearing it removes the property');
+    check(!!cleared && cleared.todo.summary === title, 'and the title is untouched by all of that');
   }
 
   console.log('\n  Completing');

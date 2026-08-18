@@ -353,7 +353,7 @@ class CalDav {
   }
 
   /**
-   * Change title, due date or priority. `fields` is partial: a key that is not
+   * Change title or due date. `fields` is partial: a key that is not
    * there leaves that property exactly as whichever client wrote it left it.
    */
   async updateTask(entryUrl, fields) {

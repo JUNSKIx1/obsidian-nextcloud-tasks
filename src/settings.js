@@ -10,14 +10,12 @@
 import { PluginSettingTab, Setting, Notice } from 'obsidian';
 import { t } from './i18n.js';
 import { mergeDiscovered } from './model.js';
-import { NewListModal } from './modals.js';
 
 class NextcloudTasksSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
     this.discovered = null;               // last successful discovery, this session
-    this.home = '';
   }
 
   display() {
@@ -165,7 +163,7 @@ class NextcloudTasksSettingTab extends PluginSettingTab {
     try {
       const d = await this.plugin.client().discover(true);
       this.discovered = d.lists;
-      this.home = d.home;
+      this.plugin.home = d.home;
       const firstRun = !this.plugin.settings.lists.length;
       this.plugin.settings.lists = mergeDiscovered(this.plugin.settings.lists, d.lists, firstRun);
       await this.save();
@@ -178,37 +176,15 @@ class NextcloudTasksSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Creates one list on the server, then rediscovers so it lands in the table
-   * with its real URL. Pressing it twice with the same name is harmless:
-   * MKCALENDAR answers 405 for a collection that exists, which is reported.
+   * The same dialog the panel offers, and deliberately the same code: creating a
+   * collection on the server is a write, and one implementation of a write is
+   * enough. All this end does is redraw the table around the result.
    */
   createList() {
-    new NewListModal(this.app, async (values) => {
-      try {
-        const dav = this.plugin.client();
-        const home = this.home || (await dav.discover()).home;
-        const res = await dav.createList(home, values.name, values.color);
-        new Notice(res.created
-          ? t('notice.listCreated', { name: values.name })
-          : t('notice.listExisted', { name: values.name }));
-
-        const d = await dav.discover(true);
-        this.discovered = d.lists;
-        this.home = d.home;
-        this.plugin.settings.lists = mergeDiscovered(this.plugin.settings.lists, d.lists, false);
-        const made = this.plugin.settings.lists.find((l) => l.url.replace(/\/?$/, '/') === res.url.replace(/\/?$/, '/'));
-        if (made) {
-          made.enabled = true;
-          made.label = values.name;
-          made.color = values.color;
-        }
-        await this.save();
-        this.display();
-        this.plugin.refresh(false);
-      } catch (e) {
-        new Notice(t('notice.createFailed', { error: message(e) }));
-      }
-    }).open();
+    this.plugin.promptNewList((d) => {
+      this.discovered = d.lists;
+      this.display();
+    });
   }
 
   /* ----------------------------------------------------------------- misc */

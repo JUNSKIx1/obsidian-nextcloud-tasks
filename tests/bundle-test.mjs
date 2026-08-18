@@ -90,9 +90,14 @@ const obsidianStub = {
     close() {}
   },
   Notice: class { hide() {} },
+  Menu: class {
+    addItem(fn) { fn({ setTitle: () => this, setChecked: () => this, onClick: () => this }); return this; }
+    showAtMouseEvent() {}
+  },
   MarkdownRenderChild: class { constructor(el) { this.containerEl = el; } },
   requestUrl: async (req) => { networkCalls.push(req); return route(req); },
   getLanguage: () => 'en',
+  setIcon: () => {},
   normalizePath: (p) => String(p).replace(/\/+/g, '/'),
 };
 

@@ -15,14 +15,14 @@
  *     ticked in the settings and knows nothing else about them.
  */
 
-import { Plugin, Notice, MarkdownRenderChild, requestUrl, getLanguage } from 'obsidian';
+import { Plugin, Notice, Menu, MarkdownRenderChild, requestUrl, getLanguage, setIcon } from 'obsidian';
 
 import { CalDav } from './caldav.js';
 import { parseBlock, selectTasks, renderPanel } from './render.js';
-import { normalizeSettings, enabledLists } from './model.js';
+import { normalizeSettings, enabledLists, mergeDiscovered, sameUrl } from './model.js';
 import { setLocale, t } from './i18n.js';
 import { NextcloudTasksSettingTab } from './settings.js';
-import { TaskModal, ProbeModal, ConfirmModal } from './modals.js';
+import { TaskModal, NewListModal, ProbeModal, ConfirmModal } from './modals.js';
 
 const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const message = (e) => (e && e.message ? e.message : String(e));
@@ -49,7 +49,9 @@ export default class NextcloudTasksPlugin extends Plugin {
     this.stickyDone = new Set();   // ticked in this session, kept on screen
 
     this.registerMarkdownCodeBlockProcessor('nextcloud-tasks', (source, el, ctx) => {
-      const block = { el, cfg: parseBlock(source) };
+      // `expanded` belongs to this block and dies with it: two panels on one
+      // note fold independently, and nothing about it reaches disk.
+      const block = { el, cfg: parseBlock(source), expanded: new Set(), drafts: new Map() };
       this.blocks.add(block);
       ctx.addChild(new BlockHandle(el, () => {
         this.blocks.delete(block);
@@ -110,7 +112,14 @@ export default class NextcloudTasksPlugin extends Plugin {
     if (!this.configured || this.loading) return;
     if (!this.blocks.size) return;                       // no panel on screen
     if (typeof document !== 'undefined' && document.hidden) return;   // app in the background
+    if (this.isTyping()) return;             // a redraw would empty the box mid-sentence
     this.refresh(false);
+  }
+
+  /** Is the cursor in a quick-add box right now? A redraw would wipe it. */
+  isTyping() {
+    const el = typeof document !== 'undefined' ? document.activeElement : null;
+    return !!(el && el.classList && el.classList.contains('nct-new-input'));
   }
 
   /**
@@ -231,14 +240,26 @@ export default class NextcloudTasksPlugin extends Plugin {
       unknownList: !!cfg.list && !lists.some((l) => l.key === cfg.list),
       rows: state === 'ready' ? selectTasks(this.entries, cfg, now, lists, this.stickyDone) : [],
       grouped: !cfg.list,
+      expanded: block.expanded,
+      drafts: block.drafts,
       stale: state === 'ready' && this.looksOffline(),
       fetchedAt: this.fetchedAt ? hhmm(this.fetchedAt) : '',
       message: this.error || '',
     }, {
+      icon: setIcon,
       onCreate: (listKey) => this.promptNewTask(listKey || null),
+      onNewList: () => this.promptNewList(),
       onRefresh: () => this.refresh(true),
       onToggle: (entry, done, settle) => this.toggle(entry, done, settle),
       onEdit: (entry) => this.promptEditTask(entry),
+      // Only this block redraws: unfolding one panel must not fold another.
+      onQuickAdd: (listKey, draft) => this.quickAdd(block, listKey, draft),
+      onPriorityMenu: (evt, current, pick) => this.priorityMenu(evt, current, pick),
+      onExpand: (key) => {
+        if (block.expanded.has(key)) block.expanded.delete(key);
+        else block.expanded.add(key);
+        this.draw(block);
+      },
     });
   }
 
@@ -259,6 +280,105 @@ export default class NextcloudTasksPlugin extends Plugin {
       new Notice(t('notice.saveFailed', { error: message(e) }));
       settle(false);
     }
+  }
+
+  /**
+   * The blank row at the bottom of a list. Same write as the dialog, without the
+   * dialog: everything it knows is a title, and whatever the two buttons on that
+   * row were set to.
+   *
+   * The draft is dropped *before* the refresh, or the redraw would put the title
+   * back in the box next to the task it just created. A failed write puts it
+   * back, because losing what someone typed is worse than showing it twice.
+   */
+  async quickAdd(block, listKey, draft) {
+    const list = enabledLists(this.settings).find((l) => l.key === listKey);
+    const summary = String((draft && draft.text) || '').trim();
+    if (!list || !summary) return;
+
+    const values = {
+      summary,
+      due: draft.due ? new Date(`${draft.due}T00:00:00`) : null,
+      priority: draft.priority || 0,
+    };
+    block.drafts.delete(listKey);
+    this.draw(block);
+
+    try {
+      await this.client().createTask(list.url, values);
+      await this.refresh(false);
+      this.focusQuickAdd(block, listKey);      // ready for the next one
+    } catch (e) {
+      console.error('[nextcloud-tasks]', e);
+      new Notice(t('notice.createFailed', { error: message(e) }));
+      block.drafts.set(listKey, draft);
+      this.draw(block);
+      this.focusQuickAdd(block, listKey);
+    }
+  }
+
+  /** Puts the cursor back where it was; the redraw built a new input. */
+  focusQuickAdd(block, listKey) {
+    if (!block.el || typeof block.el.querySelector !== 'function') return;
+    const input = block.el.querySelector(`.nct-new-input[data-list="${listKey}"]`);
+    if (input) input.focus();
+  }
+
+  /** The four levels, as Obsidian's own menu. */
+  priorityMenu(evt, current, pick) {
+    const menu = new Menu();
+    for (const [value, key] of [[0, 'none'], [1, 'high'], [5, 'medium'], [9, 'low']]) {
+      menu.addItem((item) => item
+        .setTitle(t(`prio.${key}`))
+        .setChecked((current || 0) === value)
+        .onClick(() => pick(value)));
+    }
+    menu.showAtMouseEvent(evt);
+  }
+
+  /**
+   * Creates one list on the server, then rediscovers so it lands in the settings
+   * with its real URL, ticked and named the way it was asked for. Pressing it
+   * twice with the same name is harmless: MKCALENDAR answers 405 for a
+   * collection that exists, which is reported rather than thrown.
+   *
+   * It lives here and not on the settings tab because both the tab and the
+   * panel offer it, and two copies of a CalDAV write is one too many.
+   * `after(discovery)` lets the tab redraw its table with the fresh list.
+   */
+  promptNewList(after) {
+    const s = this.settings;
+    if (!s.baseUrl || !s.username || !s.password) {
+      new Notice(t('notice.connectFirst'));
+      return;
+    }
+
+    new NewListModal(this.app, async (values) => {
+      try {
+        const dav = this.client();
+        const home = this.home || (await dav.discover()).home;
+        const res = await dav.createList(home, values.name, values.color);
+        new Notice(res.created
+          ? t('notice.listCreated', { name: values.name })
+          : t('notice.listExisted', { name: values.name }));
+
+        const d = await dav.discover(true);
+        this.home = d.home;
+        s.lists = mergeDiscovered(s.lists, d.lists, false);
+        const made = s.lists.find((l) => sameUrl(l.url, res.url));
+        if (made) {
+          made.enabled = true;
+          made.label = values.name;
+          made.color = values.color;
+        }
+        await this.saveSettings();
+        if (after) after(d);
+        await this.refresh(false);
+      } catch (e) {
+        console.error('[nextcloud-tasks]', e);
+        new Notice(t('notice.createFailed', { error: message(e) }));
+      }
+    }).open();
   }
 
   promptNewTask(preselect) {

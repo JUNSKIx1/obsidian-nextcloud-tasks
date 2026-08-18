@@ -219,6 +219,7 @@ const TASK = ical(
   ok(text.endsWith(`END:VCALENDAR${CRLF}`), 'ics: endet mit CRLF');
   ok(text.includes('DUE;VALUE=DATE:20260901'), 'ics: DUE als DATE');
   ok(text.includes('DTSTAMP:20260814T120000Z'), 'ics: DTSTAMP in UTC');
+  ok(text.includes('PRIORITY:5'), 'ics: eine gesetzte Priorität landet in der neuen Aufgabe');
   const back = ics.parseTodos(text)[0];
   eq(back.summary, 'Test; mit, Sonderzeichen', 'ics: erzeugtes SUMMARY liest sich zurück');
   eq(back.uid, uid, 'ics: erzeugte UID liest sich zurück');
@@ -347,6 +348,8 @@ const EDIT_NOW = { now: new Date(Date.UTC(2026, 7, 14, 15, 30, 0)) };
   ok(!/[\r\n]PRIORITY:/.test(ics.setFields(TASK, { priority: 0 }, EDIT_NOW)),
     'ics: Priorität 0 heißt „unbestimmt" und entfernt die Zeile');
   ok(ics.setFields(TASK, { priority: 9 }, EDIT_NOW).includes('PRIORITY:9'), 'ics: PRIORITY ersetzt');
+  ok(ics.setFields(TASK, { priority: 5 }, EDIT_NOW).includes('PRIORITY:5'),
+    'ics: auch „mittel" wird geschrieben — genau das sah man vorher nirgends');
   ok(!/[\r\n]PRIORITY:/.test(ics.setFields(TASK, { priority: 42 }, EDIT_NOW)),
     'ics: eine unsinnige Priorität wird entfernt statt geschrieben');
 }

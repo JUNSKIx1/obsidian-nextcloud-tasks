@@ -10,7 +10,8 @@
  */
 
 import {
-  parseBlock, dueLabel, daysUntil, selectTasks, groupByList, orderOf, accentOf,
+  parseBlock, dueLabel, daysUntil, selectTasks, groupByList, foldRows, priorityLevel, orderOf,
+  accentOf, renderPanel,
 } from '../src/render.js';
 import {
   normalizeSettings, mergeDiscovered, enabledLists, slugify, titleCase, lastSegment,
@@ -39,7 +40,7 @@ setLocale('en');
   deep(deKeys, enKeys, 'i18n: both tables carry exactly the same keys');
   ok(enKeys.length > 60, 'i18n: the table is actually populated');
 
-  const untranslated = enKeys.filter((k) => EN[k] === DE[k] && !/^(prio|btn)\./.test(k));
+  const untranslated = enKeys.filter((k) => EN[k] === DE[k] && !/^btn\./.test(k));
   ok(untranslated.length < 6, `i18n: German is translated, not copied (${untranslated.join(', ')})`);
 
   eq(t('due.overdue', { n: 3 }), '3 days overdue', 'i18n: placeholders are substituted');
@@ -191,6 +192,11 @@ setLocale('en');
   eq(parseBlock('done: ja').showDone, true, 'render: German "ja" understood');
   eq(parseBlock('done: yes').showDone, true, 'render: English "yes" understood');
   eq(parseBlock('title: Shopping').title, 'Shopping', 'render: custom title');
+
+  eq(parseBlock('all').preview, 2, 'render: two rows per list unless the block says otherwise');
+  eq(parseBlock('preview: 5').preview, 5, 'render: preview read');
+  eq(parseBlock('preview: 0').preview, 0, 'render: "preview: 0" means fold nothing away');
+  eq(parseBlock('limit: 5').preview, 2, 'render: limit and preview are separate caps');
 }
 
 {
@@ -263,6 +269,17 @@ const task = (listKey, summary, due, priority, done) => ({
     ['Overdue', 'Today, urgent', 'Today, whatever', 'Day after tomorrow'], 'render: "due: week"');
   eq(selectTasks(entries, parseBlock('limit: 2'), now, LISTS).length, 2, 'render: limit applies');
 
+  // The boundary the first attempt got wrong: only 1–4 was marked, so a task
+  // set to "medium" or "low" was written and then shown as nothing at all.
+  eq(priorityLevel(0), '', 'render: 0 is unset, not urgent');
+  eq(priorityLevel(undefined), '', 'render: no priority at all is unset');
+  eq(priorityLevel(1), 'high', 'render: 1 is the most urgent in RFC 5545');
+  eq(priorityLevel(4), 'high', 'render: 4 still counts as high');
+  eq(priorityLevel(5), 'medium', 'render: 5 is medium — and must show something');
+  eq(priorityLevel(6), 'low', 'render: 6 is already low');
+  eq(priorityLevel(9), 'low', 'render: 9 is the least urgent');
+  eq(priorityLevel(42), '', 'render: outside 1–9 means unset, not a fourth level');
+
   // PRIORITY 0 means "unset" in RFC 5545 and must not outrank a real 1.
   const prio = selectTasks([
     task('work', 'No priority', new Date(2026, 7, 20), 0),
@@ -286,16 +303,31 @@ const task = (listKey, summary, due, priority, done) => ({
   const rows = [task('school', 'S1'), task('work', 'W1'), task('school', 'S2'), task('ghost', 'G1')];
 
   const groups = groupByList(rows, LISTS);
-  deep(groups.map((g) => g.key), ['work', 'school', ''],
+  deep(groups.map((g) => g.key), ['work', 'school', 'private', ''],
     'render: groups follow the configured order, orphans last in a keyless bucket');
   eq(groups[0].label, '💼 Work', 'render: the group heading is the label the user typed');
   eq(groups[0].color, '#4a7699', 'render: the group carries its accent colour');
   eq(groups[1].rows.length, 2, 'render: rows land in their own group');
-  eq(groups[2].label, t('group.other'), 'render: a task from a list nobody configured still shows up');
+  eq(groups[3].label, t('group.other'), 'render: a task from a list nobody configured still shows up');
 
+  // A list with nothing in it keeps its heading: vanishing is indistinguishable
+  // from failing to load, and it was what the old global `limit` did to a list
+  // whose rows another list had already eaten.
+  eq(groups[2].rows.length, 0, 'render: a list with no rows is still a group');
+  eq(groupByList([], LISTS).length, 3, 'render: no rows at all, still every configured list');
   eq(groupByList(rows, []).length, 1, 'render: no configured lists, everything in one bucket');
-  eq(groupByList([], LISTS).length, 0, 'render: no rows, no groups');
-  eq(groupByList(rows.slice(0, 1), LISTS).length, 1, 'render: only non-empty groups are rendered');
+  eq(groupByList([], []).length, 0, 'render: nothing configured and nothing to show, no groups');
+
+  const off = LISTS.map((l) => (l.key === 'school' ? Object.assign({}, l, { enabled: false }) : l));
+  deep(groupByList(rows, off).map((g) => g.key), ['work', 'private', ''],
+    'render: an unticked list is never fetched, so it is never a group either');
+
+  // The case this feature exists for: one busy list must not starve the others.
+  const busy = groupByList(
+    Array.from({ length: 7 }, (_, i) => task('private', `P${i}`)).concat(task('school', 'S9')),
+    LISTS,
+  );
+  deep(busy.map((g) => g.rows.length), [0, 1, 7], 'render: every list reports its own count');
 
   const seven = Array.from({ length: 7 }, (_, i) => ({
     url: `https://x/${i}/`, key: `k${i}`, label: `L${i}`, color: '', enabled: true,
@@ -306,6 +338,168 @@ const task = (listKey, summary, due, priority, done) => ({
 
   const one = groupByList([task('solo', 'x')], [{ key: 'solo', label: 'Solo', color: '', enabled: true }]);
   eq(one.length, 1, 'render: one list is not a special case either');
+}
+
+{
+  const seven = Array.from({ length: 7 }, (_, i) => task('private', `P${i}`));
+  const names = (f) => f.shown.map((e) => e.todo.summary);
+
+  const shut = foldRows(seven, 2, false);
+  deep(names(shut), ['P0', 'P1'], 'render: two rows shown by default');
+  eq(shut.folded, true, 'render: a long list is folded');
+  eq(shut.hidden, 5, 'render: the toggle counts what it is hiding');
+
+  const open = foldRows(seven, 2, true);
+  eq(open.shown.length, 7, 'render: unfolded shows everything');
+  eq(open.folded, true, 'render: an open group keeps its toggle, or there is no way back');
+
+  eq(foldRows(seven, 0, false).shown.length, 7, 'render: "preview: 0" folds nothing');
+  eq(foldRows(seven, 0, false).folded, false, 'render: and offers no toggle');
+  eq(foldRows(seven.slice(0, 2), 2, false).folded, false, 'render: exactly the preview size is not folded');
+  eq(foldRows([], 2, false).folded, false, 'render: an empty group has nothing to fold');
+}
+
+/* ------------------------------------------------------------ the panel */
+
+/*
+ * Enough of an element to let `renderPanel` build into it. Obsidian's helpers
+ * are all `createX(tag, { cls, text })`, so recording those four things is the
+ * whole DOM this needs — and it is what turns "the arrow sits next to the list
+ * name" from something you squint at into something that fails a test.
+ */
+function fakeEl(tag) {
+  const el = {
+    tag,
+    cls: '',
+    text: '',
+    icon: '',
+    attrs: {},
+    kids: [],
+    empty() { el.kids.length = 0; },
+    createEl(name, o) {
+      const kid = fakeEl(name);
+      kid.cls = (o && o.cls) || '';
+      kid.text = (o && o.text) || '';
+      el.kids.push(kid);
+      return kid;
+    },
+    createDiv(o) { return el.createEl('div', o); },
+    createSpan(o) { return el.createEl('span', o); },
+    appendText(s) { el.text += s; },
+    setAttribute(k, v) { el.attrs[k] = v; },
+    addEventListener() {},
+    addClass() {},
+    removeClass() {},
+    toggleClass() {},
+  };
+  return el;
+}
+
+const flatten = (el) => el.kids.reduce((acc, k) => acc.concat(flatten(k)), [el]);
+const pick = (el, cls) => flatten(el).filter((n) => n.cls.split(' ').includes(cls));
+
+{
+  const now = new Date(2026, 7, 14);
+  const rows = [
+    ...Array.from({ length: 7 }, (_, i) => task('private', `P${i}`)),
+    task('work', 'W1', null, 1),
+    task('ghost', 'G1'),                       // a list nobody has configured
+  ];
+  const handlers = {
+    icon: (el, name) => { el.icon = name; },
+    onExpand: () => {},
+    onCreate: () => {},
+    onRefresh: () => {},
+    onNewList: () => {},
+    onQuickAdd: () => {},
+    onPriorityMenu: () => {},
+  };
+  const draw = (source, extra) => {
+    const el = fakeEl('div');
+    const cfg = parseBlock(source);
+    renderPanel(el, Object.assign({
+      state: 'ready',
+      cfg,
+      now,
+      lists: LISTS,
+      // what selectTasks would have handed over
+      rows: cfg.list ? rows.filter((e) => e.listKey === cfg.list) : rows,
+      grouped: !cfg.list,
+      expanded: new Set(),
+      drafts: new Map(),
+    }, extra), handlers);
+    return el;
+  };
+
+  const all = draw('all');
+  const labels = pick(all, 'nct-group-label');
+  deep(labels.map((n) => n.tag), ['div', 'div', 'button', 'div'],
+    'render: only a list with something to unfold gets a pressable heading');
+  eq(labels[0].text, '💼 Work', 'render: a short list keeps a plain heading');
+
+  const folded = labels[2];
+  eq(pick(folded, 'nct-chevron')[0].icon, 'chevron-right', 'render: a folded list points right');
+  eq(pick(folded, 'nct-label-text')[0].text, '🌿 Private', 'render: the name sits next to the arrow');
+  eq(pick(folded, 'nct-count')[0].text, '5', 'render: and says how many it is holding back');
+  eq(folded.attrs['aria-expanded'], 'false', 'render: the state is announced, not only drawn');
+
+  const opened = draw('all', { expanded: new Set(['private']) });
+  const shown = pick(opened, 'nct-group-label')[2];
+  eq(pick(shown, 'nct-chevron')[0].icon, 'chevron-down', 'render: an open list points down');
+  eq(pick(shown, 'nct-count').length, 0, 'render: nothing hidden, nothing to count');
+  eq(pick(opened, 'nct-row').length, 9, 'render: unfolded, every row of that list is there');
+
+  // Icon-only actions: what used to be the label is now the accessible name.
+  const buttons = pick(all, 'nct-btn');
+  deep(buttons.map((b) => b.icon), ['plus', 'list-plus', 'refresh-cw'], 'render: the header is icons');
+  deep(buttons.map((b) => b.text), ['', '', ''], 'render: and carries no text');
+  eq(buttons[0].attrs['aria-label'], t('panel.add'), 'render: the label moved to aria-label');
+
+  // The blank row: one per real list, and none in the bucket for tasks whose
+  // list is gone — there is nowhere to write those.
+  const news = pick(all, 'nct-new');
+  eq(news.length, 3, 'render: every configured list ends in a blank row');
+  deep(news.map((n) => pick(n, 'nct-new-input')[0].attrs['data-list']), ['work', 'school', 'private'],
+    'render: each blank row knows which list it writes to');
+  eq(pick(all, 'nct-none').length, 0, 'render: the blank row replaces the "nothing open" line');
+  deep(pick(all, 'nct-list').map((l) => l.kids[0].cls.split(' ')[0]), ['nct-new', 'nct-new', 'nct-new', 'nct-row'],
+    'render: the blank row opens the list, above the tasks');
+  eq(pick(news[0], 'nct-date')[0].tag, 'input', 'render: a real date input backs the calendar button');
+
+  // The flag, for every level — the half that was missing the first time.
+  const flag = pick(all, 'nct-flag')[0];
+  ok(flag && flag.cls.includes('is-high'), 'render: a priority-1 task is marked high');
+  eq(flag.icon, 'flag', 'render: and marked with the flag icon');
+
+  const typed = draw('all', {
+    drafts: new Map([['work', { text: 'Halb getippt', due: '2026-08-20', priority: 5 }]]),
+  });
+  const box = pick(typed, 'nct-new-input')[0];
+  eq(box.value, 'Halb getippt', 'render: a redraw puts back what was being typed');
+  eq(pick(typed, 'nct-send')[0].disabled, false, 'render: with a title, the send button is live');
+  eq(pick(all, 'nct-send')[0].disabled, true, 'render: an empty row has nothing to send');
+  eq(pick(all, 'nct-send')[0].icon, 'send', 'render: and it is marked as the send action');
+  ok(pick(typed, 'nct-mini-text')[0].text.length > 0, 'render: a chosen date shows on its button');
+
+  const readOnly = (() => {
+    const el = fakeEl('div');
+    renderPanel(el, {
+      state: 'ready', cfg: parseBlock('all'), now, lists: LISTS, rows, grouped: true,
+      expanded: new Set(), drafts: new Map(),
+    }, { icon: handlers.icon });
+    return el;
+  })();
+  eq(pick(readOnly, 'nct-new').length, 0, 'render: no quick-add handler, no blank row');
+  eq(pick(readOnly, 'nct-none').length, 1, 'render: and the empty list says so in words again');
+
+  // A single-list block has no group heading, so its title carries the fold.
+  const one = draw('list: private');
+  eq(pick(one, 'nct-group-label').length, 0, 'render: one list, no group heading');
+  const title = pick(one, 'nct-title')[0];
+  eq(title.tag, 'button', 'render: there the panel title is the fold toggle');
+  eq(pick(title, 'nct-count')[0].text, '5', 'render: with the same count');
+  eq(pick(one, 'nct-btn').map((b) => b.icon).includes('list-plus'), false,
+    'render: no "new list" button in a block that shows one list');
 }
 
 {

@@ -18,7 +18,8 @@ const EN = {
   'cmd.probe': 'Test connection',
 
   'panel.title': 'Open tasks',
-  'panel.add': '+ Task',
+  'panel.add': 'New task',
+  'panel.newList': 'New list',
   'panel.refresh': 'Reload tasks',
   'panel.loading': 'Loading…',
   'panel.empty': 'Nothing open. 🎉',
@@ -29,9 +30,16 @@ const EN = {
   'panel.unknownList': 'Unknown list "{key}". Check the key in the plugin settings.',
 
   'group.other': 'Other',
+  'group.empty': 'Nothing open',
+  'group.more': '+{n} more',
+  'group.less': 'Show less',
   'row.untitled': '(untitled)',
   'row.task': 'Task',
   'row.edit': 'Edit {title}',
+  'row.new': 'New task…',
+  'row.newAdd': 'Type a title and press Enter',
+  'row.newDue': 'Due date',
+  'row.newPriority': 'Priority',
 
   'due.yesterday': 'yesterday',
   'due.overdue': '{n} days overdue',
@@ -165,7 +173,8 @@ const DE = {
   'cmd.probe': 'Aufgaben: Verbindung testen',
 
   'panel.title': 'Offene Aufgaben',
-  'panel.add': '+ Aufgabe',
+  'panel.add': 'Neue Aufgabe',
+  'panel.newList': 'Neue Liste',
   'panel.refresh': 'Aufgaben neu laden',
   'panel.loading': 'Lade …',
   'panel.empty': 'Nichts offen. 🎉',
@@ -176,9 +185,16 @@ const DE = {
   'panel.unknownList': 'Unbekannte Liste „{key}“. Prüf den Schlüssel in den Plugin-Einstellungen.',
 
   'group.other': 'Ohne Zuordnung',
+  'group.empty': 'Keine Aufgaben',
+  'group.more': '+{n} weitere',
+  'group.less': 'Weniger',
   'row.untitled': '(ohne Titel)',
   'row.task': 'Aufgabe',
   'row.edit': '{title} bearbeiten',
+  'row.new': 'Neue Aufgabe …',
+  'row.newAdd': 'Titel eingeben und Enter drücken',
+  'row.newDue': 'Fälligkeit',
+  'row.newPriority': 'Priorität',
 
   'due.yesterday': 'gestern',
   'due.overdue': '{n} Tage überfällig',
